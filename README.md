@@ -1,6 +1,6 @@
 # History Podcast Codex Skills
 
-这个仓库收录了两个用于历史文化播客创作的 Codex skills。
+这个仓库收录了用于历史文化播客创作的 Codex skills。
 
 ## Skills
 
