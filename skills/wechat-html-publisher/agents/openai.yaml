@@ -1,0 +1,6 @@
+interface:
+  display_name: "公众号HTML组件"
+  short_description: "内部组件：生成HTML预览与可选草稿"
+  default_prompt: "Use $wechat-html-publisher only as an internal component of $wechat-article-pipeline to render article.html and meta.json, or to upload a confirmed draft."
+policy:
+  allow_implicit_invocation: false

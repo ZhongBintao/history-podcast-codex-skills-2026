@@ -1,0 +1,7 @@
+interface:
+  display_name: "公众号图片组件"
+  short_description: "内部组件：结构化文章搜图与图片清单"
+  default_prompt: "Use $wechat-image-director only as an internal component of $wechat-article-pipeline to create images/ and image_manifest.json from article.json."
+
+policy:
+  allow_implicit_invocation: false

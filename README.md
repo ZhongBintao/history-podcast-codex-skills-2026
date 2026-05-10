@@ -1,6 +1,6 @@
 # History Podcast Codex Skills
 
-这个仓库收录了用于历史文化播客创作的 Codex skills。
+这个仓库收录用于历史文化播客创作与微信公众号生产发布的 Codex skills。
 
 ## Skills
 
@@ -22,6 +22,24 @@ skills/civilization-narrative-director/SKILL.md
 
 ```text
 skills/podcast-script-generator/SKILL.md
+```
+
+### wechat-article-pipeline
+
+公众号文章生产总入口。默认将播客脚本、播客文章或博客文章转换为结构化文章，自动配图，生成微信 HTML，并在配置 `WECHAT_APPID` / `WECHAT_APPSECRET` 后创建微信公众号草稿。只创建草稿，不发布、不群发。
+
+路径：
+
+```text
+skills/wechat-article-pipeline/SKILL.md
+```
+
+内部组件：
+
+```text
+skills/wechat-history-article/SKILL.md
+skills/wechat-image-director/SKILL.md
+skills/wechat-html-publisher/SKILL.md
 ```
 
 ## 使用方式

@@ -1,0 +1,7 @@
+interface:
+  display_name: "公众号文章结构化组件"
+  short_description: "内部组件：播客脚本转结构化文章对象"
+  default_prompt: "Use $wechat-history-article only as an internal component of $wechat-article-pipeline to convert a podcast script into article.json."
+
+policy:
+  allow_implicit_invocation: false
