@@ -4,6 +4,7 @@ __pycache__/
 .venv/
 .env
 .env.*
+!.env.example
 
 # Local production outputs and large generated media
 *.wav
@@ -13,6 +14,9 @@ __pycache__/
 *.flac
 *_chunks/
 *_robust_chunks/
+*-wechat/
+.wechat-work/
+.wechat-upload/
 大得州机器/
 
 # Local app/editor state

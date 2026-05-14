@@ -1,6 +1,6 @@
 ---
 name: wechat-image-director
-description: Internal component for the wechat-article-pipeline skill. Finds, selects, downloads, and places reliable images for structured WeChat history article objects, creating local image files plus image_manifest.json. Prefer the public wechat-article-pipeline entrypoint for normal user requests; use this directly only when explicitly asked to work on the image-director component.
+description: Internal component for wechat-article-pipeline. Selects and downloads reliable images for structured WeChat articles generated from podcast narrations, covering history, humanities, culture, science, social science, and other knowledge topics. Writes images/ and image_manifest.json only.
 metadata:
   short-description: 内部组件：文章配图与图片清单
 ---
@@ -9,35 +9,21 @@ metadata:
 
 ## Purpose
 
-This is a lower-level production component. For normal podcast-to-WeChat work, use `wechat-article-pipeline` as the external entrypoint and let it call this component.
+Select useful, reliable, licensed images for a structured WeChat article. Images must serve comprehension, evidence, spatial orientation, comparison, or pacing.
 
-Act as the visual editor for a structured history or culture article. Select images that clarify meaning, evidence, space, objects, comparison, or pacing; download reliable local image files; and write `image_manifest.json`.
+This is an internal component. Do not create illustrated Markdown.
 
-This is a production workflow. Do not create `article_with_images.md`, do not insert Markdown image syntax, and do not write review language such as `封面图候选`.
+## Input And Output
 
-## Input
+Input:
 
-- Structured article object from `wechat-history-article`, usually `article.json`.
-- Output directory, usually `<article-stem>-wechat/`.
+- `.wechat-work/article.json`
+- output directory
 
-The article object shape:
-
-```json
-{
-  "title": "文章标题",
-  "summary": "摘要/导语",
-  "sections": [
-    {"heading": "小标题", "paragraphs": ["段落"]}
-  ]
-}
-```
-
-## Output
-
-Create or update:
+Output:
 
 ```text
-<article-stem>-wechat/
+<stem>-wechat/
 ├── image_manifest.json
 └── images/
     ├── cover.<ext>
@@ -45,37 +31,26 @@ Create or update:
     └── ...
 ```
 
-`image_manifest.json` is the only stage output besides image files.
+## Manifest
 
-## Manifest Format
+Write `image_manifest.json` as a JSON array. Every item must include:
 
-Write a JSON array. Include one object per image or unresolved placeholder:
+- `id`
+- `type`
+- `local_path`
+- `caption`
+- `placement`
+- `source_page_url`
+- `image_url`
+- `source_name`
+- `creator`
+- `license`
+- `license_status`
+- `notes`
 
-```json
-[
-  {
-    "id": "cover",
-    "type": "cover",
-    "local_path": "/absolute/path/to/images/cover.jpg",
-    "caption": "封面图：玉米与类蜀黍的形态对比。",
-    "placement": "cover",
-    "source_page_url": "https://commons.wikimedia.org/...",
-    "image_url": "https://upload.wikimedia.org/...",
-    "source_name": "Wikimedia Commons",
-    "creator": "Unknown",
-    "license": "CC BY-SA 4.0",
-    "license_status": "clear",
-    "search_keywords": ["maize teosinte comparison", "玉米 类蜀黍 对比"],
-    "notes": "用于封面图。"
-  }
-]
-```
-
-For placeholders, set `local_path` and `image_url` to `null`, set `license_status` to `not_found`, include `suggested_image`, `search_keywords`, and a production-safe `placement`.
+Use production wording only. Never write `封面图候选`.
 
 ## Placement Values
-
-Use these values so the HTML publisher can render images deterministically:
 
 - `cover`
 - `after_summary`
@@ -83,66 +58,38 @@ Use these values so the HTML publisher can render images deterministically:
 - `after_section:<section-heading>`
 - `after_paragraph:<section-heading>:<paragraph-index>`
 
-Paragraph index is zero-based within the section's `paragraphs` array.
+Paragraph index is zero-based.
 
-## Workflow
+## Source Strategy
 
-1. Read the structured article.
-   - Identify title, summary, sections, major narrative turns, evidence points, spatial references, and object/ritual/material details.
-   - Do not rewrite article text.
+Choose sources by topic:
 
-2. Choose image functions.
-   - Always attempt 1 cover image.
-   - Strongly consider 1 opening main visual after the summary.
-   - Add images only when they improve comprehension, evidence, contrast, or pacing.
+- History/culture: Wikimedia Commons, museums, libraries, archives, archaeological institutes, universities.
+- Science/popular science: NASA, NOAA, NIH, universities, research institutions, government agencies, public datasets, open-license diagrams.
+- Humanities/social science: public reports, official statistics, maps, archival photos, universities, research institutes, libraries.
+- Technology/nature: government agencies, research institutions, open technical diagrams, public-domain or clearly licensed images.
 
-3. Search reliable sources.
-   - Search in Chinese and English when useful.
-   - Prefer Wikimedia Commons, museum official websites, universities, research institutions, governments, libraries, archives, archaeological institutions, and public-domain or clearly licensed collections.
-   - Avoid Pinterest, random blogs, social media reposts, watermarked images, commercial stock previews, movie/TV screenshots, AI-generated images, and unclear mirrors.
+Avoid:
 
-4. Verify each image.
-   - Open the source page when possible.
-   - Confirm the image depicts the intended subject.
-   - Record source page URL, image URL, source name, creator, license, and license status.
-   - Do not invent URLs, licenses, creators, institutions, or file metadata.
+- Pinterest
+- random blogs
+- social media reposts
+- watermarked images
+- stock previews
+- movie/TV screenshots
+- unclear mirrors
+- AI-generated images unless the user explicitly asks
 
-5. Download images.
-   - Save under `images/`.
-   - Use stable ASCII filenames: `cover.jpg`, `001-tenochtitlan-map.jpg`.
-   - Prefer `.jpg`, `.jpeg`, `.png`, or `.webp`.
-   - Keep files practical for article use.
-
-6. Write `image_manifest.json`.
-   - Use absolute `local_path` values.
-   - Include `placement` for every image.
-   - Use production wording only: `封面图：...` or direct factual captions.
-   - Never write `封面图候选`.
-
-## Image Types
-
-- `cover`: readable thumbnail communicating the theme.
-- `opening-main-visual`: establishes the core scene or object.
-- `spatial-or-map`: explains geography, routes, cities, regions, or movement.
-- `structure-explainer`: explains buildings, infrastructure, objects, biological form, production, or technical systems.
-- `evidence`: shows sites, excavated objects, manuscripts, inscriptions, codices, archival documents, or museum holdings.
-- `comparison`: makes a core contrast visible.
-- `daily-life`: supports ordinary work, food, ritual, craft, farming, transport, or domestic life.
-- `closing`: quiet final visual when it strengthens the ending.
+Do not invent URLs, creators, licenses, or source metadata.
 
 ## Quantity
 
 - Under 3000 Chinese characters: 3-5 images including cover.
 - 3000-6000 Chinese characters: 5-8 images including cover.
-- Longer articles: at most 8-10 images unless the user asks for more.
-- Do not force every section to have an image.
-- Usually leave 3-5 natural paragraphs between inline images.
+- Longer: at most 8-10 images unless requested.
 
-## Failure And Degradation
+Do not force every section to have an image. Keep images spaced naturally.
 
-If internet search, verification, or download fails:
+## Failure
 
-- Do not fake metadata.
-- Record a placeholder entry in `image_manifest.json`.
-- Tell the caller which images need manual search.
-- Continue so the HTML stage can render the article with available images.
+If a reliable image cannot be found, record a placeholder in `image_manifest.json` with `license_status: "not_found"` and useful search keywords. Do not fake metadata.

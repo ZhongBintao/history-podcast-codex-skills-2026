@@ -1,196 +1,113 @@
 ---
 name: wechat-article-pipeline
-description: Primary and recommended external entrypoint for the production Chinese history podcast-to-WeChat article workflow. Use when the user wants to turn a history, civilization, archaeology, culture podcast script, podcast article, blog article, or long-form source text into a structured article package with article.json, downloaded images, image_manifest.json, local WeChat HTML preview, meta.json, and a WeChat Official Account draft. Ask for publishing configuration up front, then run end to end by default without stopping after HTML preview. Prefer this skill over the lower-level wechat-history-article, wechat-image-director, and wechat-html-publisher components.
+description: Primary external entrypoint for converting a completed Chinese podcast narration file, especially narration.txt, into a WeChat Official Account article draft. Use for history, humanities, culture, science, social science, and other knowledge podcast narrations. The workflow asks for missing WeChat AppID/AppSecret up front, saves them to ~/.codex/wechat.env for reuse, rewrites narration into a WeChat article, selects licensed images, renders article.html, and creates a WeChat draft without producing intermediate Markdown.
 metadata:
-  short-description: 公众号文章总入口：文章到微信草稿
+  short-description: 口播稿到微信公众号草稿
 ---
 
 # WeChat Article Pipeline
 
-## Overview
+## Purpose
 
-This is the only recommended user-facing entrypoint for the WeChat article workflow. The lower-level `wechat-history-article`, `wechat-image-director`, and `wechat-html-publisher` skills are internal production components used by this orchestrator; do not ask the user to invoke them directly during normal operation.
+Use this as the only user-facing entrypoint for publishing a completed podcast narration to WeChat.
 
-Run the single production workflow:
+Default input is a finished `narration.txt` style口播稿. The narration may be history, humanities, culture, science, social science, or another knowledge podcast topic.
+
+## Default Workflow
 
 ```text
-历史播客脚本/播客文章/博客文章
-→ 结构化公众号文章 article.json
-→ 图片选择、下载与 image_manifest.json
-→ 微信公众号 HTML 预览 article.html + meta.json
-→ 自动创建微信公众号草稿
+narration.txt
+→ .wechat-work/article.json
+→ images/ + image_manifest.json
+→ article.html
+→ WeChat draft
 ```
 
-Default behavior is to ask for publishing configuration once at the beginning, then run directly through draft creation without stopping after HTML preview. Do not provide staged review/debug modes unless the user explicitly asks for a custom diagnostic run. Draft creation is allowed by default after the up-front configuration check, but publishing or mass-sending is never allowed.
+Default output directory is next to the input file:
+
+```text
+<stem>-wechat/
+├── article.html
+├── image_manifest.json
+├── images/
+└── wechat_upload_result.json
+```
+
+Temporary machine files live under `.wechat-work/`. Delete `.wechat-work/` after successful draft upload. Keep it only when a failure needs debugging.
 
 ## Up-Front Configuration
 
-Before running the workflow, confirm the publishing configuration in one concise message. Use defaults for anything the user does not specify, except `WECHAT_APPID` and `WECHAT_APPSECRET`, which must come from environment variables or direct user-provided values.
-
-Defaults:
-
-- input type: podcast article or podcast script
-- output: create a WeChat draft after HTML generation
-- author: `知识的小世界`
-- content source URL: empty; do not set `content_source_url`
-- comments: enabled
-- comment scope: everyone can comment, not fans-only
-- HTML preview gate: disabled; do not stop after generating `article.html`
-- WeChat action: create draft only, never publish or mass-send
-
-Ask only for missing required sensitive configuration:
+At the beginning of the run, check these values:
 
 ```env
 WECHAT_APPID=
 WECHAT_APPSECRET=
-```
-
-Do not ask again for non-sensitive defaults unless the user wants to override them. Never write AppSecret into Markdown, JSON, scripts, logs, or final replies.
-
-## Output Folder
-
-For a podcast script, write a final package next to the input unless the user specifies a destination:
-
-```text
-<article-stem>-wechat/
-├── article.json
-├── article.html
-├── meta.json
-├── image_manifest.json
-└── images/
-    ├── cover.<ext>
-    ├── 001-<slug>.<ext>
-    └── ...
-```
-
-Allowed machine intermediate: `article.json`.
-
-Forbidden production outputs:
-
-- `公众号文章_第一版.md`
-- `article_with_images.md`
-- Markdown as the interface between stages
-- three title options
-- `封面图候选`
-
-## Stages
-
-Use these skills in order:
-
-1. `$wechat-history-article`: podcast script to structured `article.json`.
-2. `$wechat-image-director`: `article.json` to `images/` and `image_manifest.json`.
-3. `$wechat-html-publisher`: `article.json` + `image_manifest.json` to `article.html` and `meta.json`.
-4. `$wechat-html-publisher` upload mode: create a WeChat draft after HTML generation when `WECHAT_APPID` and `WECHAT_APPSECRET` are available.
-
-## Intake
-
-Identify the current starting point:
-
-- Podcast script, podcast article, blog article, path, or pasted text: start at content restructuring.
-- `article.json`: start at image direction or HTML generation if images already exist.
-- Folder containing `article.json`, `image_manifest.json`, and `images/`: generate HTML preview.
-- Folder containing `article.html` and `meta.json`: ask only whether the user wants draft upload.
-
-If the user provides a relative path, resolve it against the current working directory. Preserve source files.
-
-## Production Workflow
-
-### 1. Content Restructuring
-
-Use `$wechat-history-article`.
-
-Write:
-
-```text
-<article-stem>-wechat/article.json
-```
-
-Requirements:
-
-- one final title only
-- one 100-180 character summary
-- sectioned body in `sections`
-- no Markdown output
-- no internal notes or source commentary
-
-### 2. Image Direction
-
-Use `$wechat-image-director` with `article.json` and the output folder.
-
-Write:
-
-```text
-<article-stem>-wechat/image_manifest.json
-<article-stem>-wechat/images/
-```
-
-Requirements:
-
-- use reliable image sources
-- write full source and license metadata in the manifest
-- include `placement` for every image
-- never write `article_with_images.md`
-- never write `封面图候选`
-
-### 3. HTML Preview
-
-Use `$wechat-html-publisher` preview mode.
-
-Run:
-
-```bash
-python3 /Users/zhongbintao/.codex/skills/wechat-html-publisher/scripts/render_wechat_html.py \
-  --article-dir /path/to/<article-stem>-wechat
-```
-
-Write:
-
-```text
-article.html
-meta.json
-```
-
-After generating preview, continue directly to draft creation by default. Do not stop here unless the user explicitly asked for preview-only mode.
-
-Preview files:
-
-- `article.html`
-- `meta.json`
-- `image_manifest.json`
-- `images/`
-
-### 4. Draft Upload
-
-Proceed after HTML generation when the up-front publishing configuration allows draft creation. The default is to create a draft automatically.
-
-Before upload, verify or request:
-
-```env
-WECHAT_APPID=
-WECHAT_APPSECRET=
-```
-
-Use the fixed default author `知识的小世界` unless the user explicitly asks for a different author.
-
-Default upload options:
-
-```env
+WECHAT_AUTHOR=知识的小世界
 WECHAT_CONTENT_SOURCE_URL=
 WECHAT_NEED_OPEN_COMMENT=1
 WECHAT_ONLY_FANS_CAN_COMMENT=0
 ```
 
-Tell the user:
+Read existing environment variables first. If `WECHAT_APPID` or `WECHAT_APPSECRET` is missing, ask the user for the missing value before doing the workflow. After the user provides it, write/update `~/.codex/wechat.env` and set file permissions to user-only read/write.
 
-- AppSecret must not be written into Markdown, JSON, scripts, logs, or final replies.
-- If WeChat reports `invalid ip`, `not in whitelist`, or `40164`, add the current server IP to the WeChat public platform IP whitelist.
-- Upload creates a draft only. It does not publish or mass-send.
-- If `WECHAT_APPID` or `WECHAT_APPSECRET` is missing, stop before upload and explain exactly which environment variable is needed.
+Do not write AppSecret into the repository, generated article files, JSON outputs, logs, or final responses.
 
-## Safety Rules
+Defaults:
 
-- Do not publish, mass-send, delete, or modify existing WeChat account assets.
-- Do not invent historical facts, image metadata, licenses, URLs, or WeChat API results.
-- Do not expose AppSecret.
-- If image placeholders or unclear licenses remain, report them before draft upload. If the user allowed automatic draft creation, stop only when the unresolved image issue would make the draft misleading or unusable.
-- Final HTML正文 must not display the article title; the title belongs in `meta.json.title` and the WeChat draft title field.
+- author: `知识的小世界`
+- content source URL: empty
+- comments: enabled
+- fans-only comments: disabled
+- action: create draft only
+
+Never publish, mass-send, delete, or modify existing WeChat assets.
+
+## Stages
+
+1. Content restructuring with `wechat-history-article`.
+   - Despite its legacy name, use it as the narration-to-article component.
+   - Write the structured article to `<output>/.wechat-work/article.json`.
+   - Do not create Markdown.
+
+2. Image direction with `wechat-image-director`.
+   - Read `.wechat-work/article.json`.
+   - Write `image_manifest.json` and `images/`.
+
+3. HTML rendering with `wechat-html-publisher`.
+   - Render `article.html` from `.wechat-work/article.json` and `image_manifest.json`.
+   - Do not write final `meta.json`.
+
+4. Draft upload with `wechat-html-publisher`.
+   - Upload正文 images and cover.
+   - Create a WeChat draft.
+   - Write `wechat_upload_result.json`.
+   - Clean `.wechat-work/` and `.wechat-upload/` after success.
+
+## Content Rules
+
+- Preserve the narration's facts, logic, viewpoint, tone, and emotional progression.
+- Remove口播-only repetition, filler transitions, excessive rhythm words, and TTS/recording artifacts.
+- Do not add facts, numbers, people, concepts, sources, quotes, or causal claims absent from the narration.
+- Keep cautious language when the narration is cautious.
+- For science topics, preserve the concept chain and explanatory sequence.
+- For humanities and social science topics, preserve argument structure and nuance.
+- For history and culture topics, preserve chronology, evidence, and uncertainty.
+
+## Forbidden Outputs
+
+- `公众号文章_第一版.md`
+- `article_with_images.md`
+- final `article.json`
+- final `meta.json`
+- title option lists
+- `封面图候选`
+
+## Completion Report
+
+After success, report only:
+
+- `article.html`
+- `image_manifest.json`
+- `images/`
+- `wechat_upload_result.json`
+- draft media id when available

@@ -16,11 +16,27 @@ from pathlib import Path
 API_BASE = "https://api.weixin.qq.com"
 ONE_MB = 1024 * 1024
 UPLOAD_IMAGE_LIMIT = 950 * 1024
+DEFAULT_ENV_FILE = Path.home() / ".codex" / "wechat.env"
 
 
 def die(message, code=1):
     print(message, file=sys.stderr)
     raise SystemExit(code)
+
+
+def load_env_file(path):
+    path = Path(path).expanduser()
+    if not path.exists():
+        return
+    for raw in path.read_text("utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def env_int(name, default):
@@ -148,11 +164,21 @@ def make_upload_safe_image(src, dst_dir):
 def main():
     parser = argparse.ArgumentParser(description="Upload generated article HTML to WeChat draft box.")
     parser.add_argument("--article-dir", required=True)
+    parser.add_argument("--work-dir", default=".wechat-work")
+    parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE))
     parser.add_argument("--author", default=os.environ.get("WECHAT_AUTHOR", "知识的小世界"))
     parser.add_argument("--content-source-url", default=os.environ.get("WECHAT_CONTENT_SOURCE_URL", ""))
     parser.add_argument("--need-open-comment", type=int, default=env_int("WECHAT_NEED_OPEN_COMMENT", 1))
     parser.add_argument("--only-fans-can-comment", type=int, default=env_int("WECHAT_ONLY_FANS_CAN_COMMENT", 0))
     args = parser.parse_args()
+
+    load_env_file(args.env_file)
+    if args.author == "知识的小世界":
+        args.author = os.environ.get("WECHAT_AUTHOR", args.author)
+    if not args.content_source_url:
+        args.content_source_url = os.environ.get("WECHAT_CONTENT_SOURCE_URL", "")
+    args.need_open_comment = env_int("WECHAT_NEED_OPEN_COMMENT", args.need_open_comment)
+    args.only_fans_can_comment = env_int("WECHAT_ONLY_FANS_CAN_COMMENT", args.only_fans_can_comment)
 
     appid = os.environ.get("WECHAT_APPID")
     appsecret = os.environ.get("WECHAT_APPSECRET")
@@ -160,17 +186,27 @@ def main():
         die("请通过环境变量提供 WECHAT_APPID 和 WECHAT_APPSECRET。")
 
     article_dir = Path(args.article_dir).resolve()
+    work_dir = article_dir / args.work_dir
     html_path = article_dir / "article.html"
-    meta_path = article_dir / "meta.json"
-    if not html_path.exists() or not meta_path.exists():
-        die("article-dir 下必须存在 article.html 和 meta.json。")
+    article_path = work_dir / "article.json"
+    meta_path = work_dir / "meta.json"
+    manifest_path = article_dir / "image_manifest.json"
+    if not html_path.exists():
+        die("article-dir 下必须存在 article.html。")
+    if not article_path.exists():
+        die(f"缺少结构化文章文件: {article_path}")
+    if not manifest_path.exists():
+        die(f"缺少图片清单文件: {manifest_path}")
 
     html = html_path.read_text("utf-8")
-    meta = json.loads(meta_path.read_text("utf-8"))
+    article_data = json.loads(article_path.read_text("utf-8"))
+    manifest = json.loads(manifest_path.read_text("utf-8"))
+    meta = json.loads(meta_path.read_text("utf-8")) if meta_path.exists() else {}
     content_html = compact_html_fragment(extract_main_inner(html))
-    title = meta["title"]
-    digest = meta["summary"][:128]
-    cover_path = Path((meta.get("cover") or {}).get("src") or "images/cover.jpg")
+    title = meta.get("title") or article_data["title"]
+    digest = (meta.get("summary") or article_data["summary"])[:128]
+    cover = meta.get("cover") or next((image for image in manifest if image.get("placement") == "cover"), {})
+    cover_path = Path(cover.get("src") or cover.get("local_path") or "images/cover.jpg")
     if not cover_path.is_absolute():
         cover_path = article_dir / cover_path
 
@@ -179,8 +215,8 @@ def main():
     if len(args.author) > 16:
         die(f"作者超过微信 16 字限制: {args.author}")
 
-    work_dir = article_dir / ".wechat-upload"
-    upload_images_dir = work_dir / "images"
+    upload_work_dir = article_dir / ".wechat-upload"
+    upload_images_dir = upload_work_dir / "images"
     upload_images_dir.mkdir(parents=True, exist_ok=True)
 
     image_map = {}
@@ -203,12 +239,11 @@ def main():
             die(f"上传正文图片没有返回 url: {json.dumps(result, ensure_ascii=False)}")
         image_map[src] = {
             "wechat_url": image_url,
-            "uploaded_file": str(prepared),
             "uploaded_bytes": prepared.stat().st_size,
         }
         content_html = content_html.replace(f'src="{src}"', f'src="{image_url}"')
 
-    fragment_path = work_dir / "article_wechat_fragment.html"
+    fragment_path = upload_work_dir / "article_wechat_fragment.html"
     fragment_path.write_text(content_html, "utf-8")
     if len(content_html) >= 20000:
         print(f"警告：HTML 片段字符数为 {len(content_html)}，接近或超过微信文档里的 2 万字符限制。", file=sys.stderr)
@@ -242,7 +277,6 @@ def main():
         "author": args.author,
         "digest": digest,
         "article_dir": str(article_dir),
-        "fragment_path": str(fragment_path),
         "content_chars": len(content_html),
         "content_bytes": len(content_html.encode("utf-8")),
         "image_map": image_map,
@@ -254,6 +288,8 @@ def main():
     }
     result_path = article_dir / "wechat_upload_result.json"
     result_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), "utf-8")
+    shutil.rmtree(upload_work_dir, ignore_errors=True)
+    shutil.rmtree(work_dir, ignore_errors=True)
     print(json.dumps({"draft_media_id": output["draft_media_id"], "result_path": str(result_path)}, ensure_ascii=False))
 
 

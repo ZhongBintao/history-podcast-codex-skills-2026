@@ -191,10 +191,12 @@ def main():
     parser = argparse.ArgumentParser(description="Render WeChat-compatible HTML from article.json and image_manifest.json.")
     parser.add_argument("--article-dir", required=True)
     parser.add_argument("--article-json")
+    parser.add_argument("--work-dir", default=".wechat-work")
     args = parser.parse_args()
 
     article_dir = Path(args.article_dir).resolve()
-    article_path = Path(args.article_json).resolve() if args.article_json else article_dir / "article.json"
+    work_dir = article_dir / args.work_dir
+    article_path = Path(args.article_json).resolve() if args.article_json else work_dir / "article.json"
     manifest_path = article_dir / "image_manifest.json"
     if not article_path.exists():
         raise SystemExit(f"Missing {article_path}")
@@ -209,7 +211,8 @@ def main():
 
     html_text = re.sub(r"\n\s*\n+", "\n", render(article, manifest, article_dir)).strip() + "\n"
     html_path = article_dir / "article.html"
-    meta_path = article_dir / "meta.json"
+    meta_path = work_dir / "meta.json"
+    work_dir.mkdir(parents=True, exist_ok=True)
     html_path.write_text(html_text, "utf-8")
 
     cover = next((image for image in manifest if clean_text(image.get("placement")) == "cover"), None)

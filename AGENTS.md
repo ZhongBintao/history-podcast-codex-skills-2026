@@ -115,21 +115,34 @@ skills/wechat-image-director/
 skills/wechat-html-publisher/
 ```
 
-稳定产物：
+当前输入：
 
 ```text
-article.json
+narration.txt
+```
+
+适用内容包括历史、人文、科普、社科、文化等知识型播客口播稿。
+
+成功后的稳定产物：
+
+```text
+article.html
 image_manifest.json
 images/
-article.html
-meta.json
-微信公众号草稿
+wechat_upload_result.json
 ```
 
 边界：
 
+- 不生成中间 Markdown。
+- 使用 `.wechat-work/article.json` 作为临时机器中间产物。
+- 成功上传后删除 `.wechat-work/` 和 `.wechat-upload/`。
 - 默认创建微信公众号草稿。
 - 不发布、不群发、不删除账号资产。
+- 最终不保留 `article.json` 或 `meta.json`。
+- 微信配置优先读取环境变量；若缺少 `WECHAT_APPID` 或 `WECHAT_APPSECRET`，运行前询问用户。
+- 首次获取后写入 `~/.codex/wechat.env`，不要写入仓库。
+- 默认作者 `知识的小世界`，原文链接为空，评论开启，非仅粉丝评论。
 - 不把 WeChat AppSecret 写入 Markdown、JSON、脚本、日志或最终回复。
 
 ## 3. 播客产物契约
@@ -346,7 +359,7 @@ fallback_body_script: tools/robust_episode_tts.py
 用户提出历史/知识类播客选题
 → podcast-series-showrunner 统一澄清需求和确定系列方案
 → 播客工作流生成 script_full.md、narration.txt、episode.mp3
-→ 公众号文章工作流读取同一集脚本或口播稿，生成 article.json、HTML 和微信公众号草稿
+→ 公众号文章工作流读取同一集 narration.txt，生成 HTML 和微信公众号草稿
 ```
 
 推荐并行策略：

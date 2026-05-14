@@ -1,7 +1,7 @@
 interface:
   display_name: "公众号文章总入口"
-  short_description: "唯一推荐入口：文章到微信公众号草稿"
-  default_prompt: "Use $wechat-article-pipeline to confirm publishing configuration up front, then run a podcast or blog article through the production WeChat workflow and create a WeChat draft by default without stopping after HTML preview."
+  short_description: "口播稿 narration.txt 到微信公众号草稿"
+  default_prompt: "Use $wechat-article-pipeline to convert a completed narration.txt podcast script into a WeChat article draft. Check WeChat config up front, use ~/.codex/wechat.env for saved credentials, render article.html, and create a draft without intermediate Markdown."
 
 policy:
   allow_implicit_invocation: true
