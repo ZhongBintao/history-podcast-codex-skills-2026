@@ -1,0 +1,4 @@
+interface:
+  display_name: "Podcast Episode Editor"
+  short_description: "内部模块：由系列总导演调用，把片头口播和正文口播合成为完整口播版MP3"
+  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Combine opening_voice.wav and voice.wav into episode.mp3 and production_manifest.json."

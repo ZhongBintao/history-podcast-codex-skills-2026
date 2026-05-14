@@ -1,0 +1,4 @@
+interface:
+  display_name: "Podcast Episode Director"
+  short_description: "内部模块：由系列总导演调用，把series_plan中的单集转换为episode_brief"
+  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read series_plan.json and create episode_brief.json for the requested episode."

@@ -1,0 +1,19 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+
+# Local production outputs and large generated media
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*_chunks/
+*_robust_chunks/
+大得州机器/
+
+# Local app/editor state
+.claude/settings.local.json
