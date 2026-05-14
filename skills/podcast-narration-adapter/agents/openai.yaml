@@ -1,4 +1,4 @@
 interface:
   display_name: "Podcast Narration Adapter"
   short_description: "内部模块：由系列总导演调用，把审稿脚本转换成干净TTS口播稿"
-  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read episode_brief.json, script_full.md, and fact_check.md, then create narration.txt and narration_meta.json."
+  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read episode_brief.json and script_full.md, consult fact_check.md only when it exists, then create narration.txt and narration_meta.json."

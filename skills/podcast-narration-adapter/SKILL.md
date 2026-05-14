@@ -1,6 +1,6 @@
 ---
 name: podcast-narration-adapter
-description: 内部模块：播客口播适配。Normally invoked by podcast-series-showrunner after script_full.md and fact_check.md are created. Produces clean TTS-only narration.txt plus narration_meta.json. Do not expose as the default user-facing entrypoint.
+description: 内部模块：播客口播适配。Normally invoked by podcast-series-showrunner after script_full.md is created. Produces clean TTS-only narration.txt plus narration_meta.json. Do not expose as the default user-facing entrypoint.
 ---
 
 # Podcast Narration Adapter
@@ -10,6 +10,13 @@ Internal module. Normal users should enter through `podcast-series-showrunner`.
 ## Role
 
 Convert a reviewed podcast script into clean narration text for TTS, plus machine-readable paragraph metadata.
+
+The adapter is writer-agnostic. It should work with any future writer skill that follows the shared contract:
+
+- Input from writer: `script_full.md`.
+- Optional review file: `fact_check.md`.
+- The writer skill may be history, science, humanities, culture, travel, business, or custom.
+- Do not require writer-specific metadata files.
 
 ## Current MVP Boundary
 
@@ -26,10 +33,10 @@ Convert a reviewed podcast script into clean narration text for TTS, plus machin
 ```text
 episode_brief.json
 script_full.md
-fact_check.md
+fact_check.md optional
 ```
 
-Use `fact_check.md` only to avoid overstating disputed or uncertain claims. Do not copy fact-check content into narration.
+Use `fact_check.md` when it exists only to avoid overstating disputed or uncertain claims. Do not copy fact-check content into narration.
 
 ## Outputs
 
@@ -44,7 +51,7 @@ Write beside `script_full.md` unless the user specifies another folder.
 
 1. Parse `episode_brief.json`.
 2. Read `script_full.md` and remove Markdown structure from the TTS body.
-3. Check `fact_check.md` for cautions about uncertainty, names, dates, and pronunciation.
+3. If `fact_check.md` exists, check it for cautions about uncertainty, names, dates, and pronunciation.
 4. Rewrite only where useful for oral delivery: split overlong sentences, remove visual Markdown transitions, normalize numbers and years, clarify foreign names, and keep host persona intact.
 5. Create `narration.txt` as plain text paragraphs.
 6. Prepend the default re-entry line as the first paragraph: `好的，欢迎回到这期节目。`

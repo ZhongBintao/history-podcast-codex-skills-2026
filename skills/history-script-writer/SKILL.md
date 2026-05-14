@@ -1,6 +1,6 @@
 ---
 name: history-script-writer
-description: 内部模块：历史文化播客写稿。Normally invoked by podcast-series-showrunner after episode_brief.json is created. Produces script_full.md, fact_check.md, and script_meta.json. Do not expose as the default user-facing entrypoint.
+description: 内部模块：历史文化播客写稿。Normally invoked by podcast-series-showrunner after episode_brief.json is created. Produces script_full.md by default, with optional fact_check.md for high-risk or explicitly required episodes. Do not expose as the default user-facing entrypoint.
 ---
 
 # History Script Writer
@@ -9,7 +9,7 @@ Internal module. Normal users should enter through `podcast-series-showrunner`.
 
 ## Role
 
-Write the full draft script for a historical or history-culture podcast episode from `episode_brief.json`. Produce human-reviewable prose and a separate fact-check file for the production team.
+Write the full draft script for a historical or history-culture podcast episode from `episode_brief.json`. Produce human-reviewable prose. Create a separate fact-check file only when the brief marks fact checking as required, the topic is disputed/high-risk, or the user explicitly asks.
 
 Keep this skill focused on content writing. Leave clean TTS narration, sound-effect marks, timestamps, audio, and final mixing to downstream skills.
 
@@ -36,7 +36,19 @@ Use these fields when present:
 - `fact_check_requirements`
 - `avoid`
 
-If the brief is not historical or does not recommend `history-script-writer`, say so briefly and either stop or ask whether to continue as a custom history-culture draft.
+If the brief is not historical or does not recommend `history-script-writer`, check `writer_fallback_reason`. If this skill was selected as a registry fallback, continue as a general spoken-script writer while preserving the brief's domain constraints. Otherwise say so briefly and ask whether to continue.
+
+## Writer Extension Contract
+
+This skill is one implementation of the shared writer contract. Future science, humanities, culture, travel, or business writers should keep the same minimum interface:
+
+- Input: `episode_brief.json`.
+- Required output: `script_full.md`.
+- Optional output: `fact_check.md`.
+- Do not create narration, audio, timestamps, music, sound-effect notes, or final mix files.
+- Respect `fact_check_requirements.required` and create `fact_check.md` only when required by the brief, topic risk, or user request.
+
+The writer selected in `episode_brief.json.recommended_writer_skill` comes from `skills/writer_registry.json`. Do not hard-code new domain routing inside this skill.
 
 ## Outputs
 
@@ -44,8 +56,7 @@ Write the outputs beside `episode_brief.json` unless the user specifies another 
 
 ```text
 script_full.md
-fact_check.md
-script_meta.json
+fact_check.md optional
 ```
 
 ## Workflow
@@ -55,9 +66,8 @@ script_meta.json
 3. Extract the core question, narrative angle, modules, anchors, voice persona, and avoid rules.
 4. Gather or verify historical facts when the brief requires fact checking. For unstable, disputed, niche, or easily misremembered claims, use reliable sources instead of memory.
 5. Draft `script_full.md` around the brief's structure and emotional arc.
-6. Draft `fact_check.md` as production-only verification notes. Mark each important claim as supported, interpretive, uncertain, or needs review.
-7. Draft `script_meta.json` with paths, character counts, source brief, and status.
-8. Validate `script_meta.json` as parseable JSON.
+6. If fact checking is required, draft a concise `fact_check.md` as production-only verification notes. Mark only important claims as supported, interpretive, uncertain, or needs review.
+7. Do not create `script_meta.json` by default; `production_state.json` already tracks paths and status.
 
 ## Script Style
 
@@ -123,7 +133,7 @@ Do not include:
 
 ## Fact Check
 
-Write `fact_check.md` for the production team, not for broadcast.
+Write `fact_check.md` for the production team, not for broadcast, only when it is needed.
 
 Include:
 
@@ -151,38 +161,12 @@ For history topics, be especially careful with:
 - Claims about religion, ritual, violence, decline, or disappearance.
 - Comparisons across civilizations.
 
-## Metadata
-
-Write `script_meta.json` with this shape:
-
-```json
-{
-  "series_name": "太阳、雨林与高原",
-  "episode_no": 1,
-  "episode_title": "雨林里的时间机器",
-  "writer_skill": "history-script-writer",
-  "target_length_chars": 5000,
-  "actual_length_chars": 5120,
-  "source_brief": "/absolute/path/to/episode_brief.json",
-  "script_full_path": "/absolute/path/to/script_full.md",
-  "fact_check_path": "/absolute/path/to/fact_check.md",
-  "status": "draft",
-  "next_step": {
-    "target_skill": "podcast-narration-adapter",
-    "expected_outputs": ["narration.txt", "narration_meta.json"]
-  }
-}
-```
-
-Count `actual_length_chars` for the spoken draft body, excluding the fact-check file. It may include Markdown headings if the file is still in review form.
-
 ## Quality Checklist
 
 Before finishing:
 
-- Confirm the three output files exist.
+- Confirm `script_full.md` exists.
 - Confirm `script_full.md` follows the brief and does not contain sound-effect or TTS tags.
-- Confirm `fact_check.md` is separate from the script.
-- Confirm `script_meta.json` is valid JSON and uses absolute paths.
-- Confirm historical uncertainty is marked instead of smoothed over.
+- If `fact_check.md` is created, confirm it is separate from the script.
+- Confirm historical uncertainty is marked in the script or fact-check notes instead of smoothed over.
 - Confirm the next step points to `podcast-narration-adapter`.

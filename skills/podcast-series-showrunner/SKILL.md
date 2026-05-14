@@ -29,12 +29,48 @@ Do not create production files, call TTS, or generate audio in this phase.
    - each episode narrative angle
 6. Present 1-3 fixed series opening voice candidates.
 7. Ask the user to choose or approve the direction and opening voice.
+8. After the user approves the creative direction, run the Production Readiness Check before creating production files or calling TTS.
 
-The user must explicitly say something equivalent to `开始执行`, `生成第 X 集`, or `跑完整流程` before production starts.
+The user must explicitly say something equivalent to `开始执行`, `生成第 X 集`, or `跑完整流程`, and the Production Readiness Check must be satisfied, before audio production starts.
+
+### Production Readiness Check
+
+After the creative plan is confirmed, tell the user exactly what is still needed to complete production. Do not start generating production files until this check is answered.
+
+Required readiness items:
+
+- Confirm `series_name` and output series folder name.
+- Confirm target episode number or episode range for this run. Default is one episode.
+- Confirm whether optional `fact_check.md` should be generated even when the topic is not disputed/high-risk.
+- Confirm TTS credentials:
+  - Preferred: user has set `DASHSCOPE_API_KEY` in the environment.
+  - Allowed: user pastes a DashScope API key in chat for this run.
+  - Optional: `DASHSCOPE_WORKSPACE`, only if their DashScope account requires it.
+
+Credential handling rules:
+
+- If the user pastes an API key in chat, treat it as a temporary runtime credential only.
+- Do not repeat the key back to the user.
+- Do not write the key to `series_plan.json`, `production_state.json`, manifests, Markdown, terminal logs, or final replies.
+- Manifest files may record only `api_key_source: "DASHSCOPE_API_KEY"`.
+- If no TTS credential is available, production may proceed only through planning, scripting, and narration. Stop at `narration_done`; do not call TTS, create fake audio, or mark `tts_done`/`mp3_done`.
+
+Readiness prompt shape:
+
+```text
+方案已经确认。要真正跑完整生产流程，我还需要：
+1. 系列文件夹名/输出目录确认：...
+2. 本次生成第几集：...
+3. TTS 凭证：请确认已设置 DASHSCOPE_API_KEY，或直接发本次临时使用的 key。
+4. 可选：DASHSCOPE_WORKSPACE。
+5. 可选：是否强制生成 fact_check.md。
+
+拿到这些后，我再开始生成文件和音频。
+```
 
 ### Phase 2: Production Orchestration
 
-After explicit execution approval, orchestrate internal modules and local scripts.
+After explicit execution approval and a satisfied Production Readiness Check, orchestrate internal modules and local scripts.
 
 Default execution:
 
@@ -50,22 +86,22 @@ Production order:
 1. Create or read the series folder.
 2. Write `series_plan.json`.
 3. Write `series_opening_voice.md` and `series_opening_voice.json` using the opening voice chosen in Phase 1, or the recommended candidate if the user delegated selection.
-4. Generate `opening_voice.wav` with the internal TTS producer if it does not already exist or if the opening text changed.
+4. Generate `opening_voice.wav` with the internal TTS producer if credentials are available and it does not already exist or if the opening text changed.
 5. Create or update `production_state.json`.
 6. Create `episodes/epXX-<slug>/`.
 7. Invoke internal episode director to write `episode_brief.json`.
-8. Invoke the internal writer skill to write `script_full.md`, `fact_check.md`, and `script_meta.json`.
+8. Invoke the internal writer skill to write `script_full.md`; create `fact_check.md` only for disputed/high-risk episodes or when the brief explicitly requires it.
 9. Invoke internal narration adapter to write `narration.txt` and `narration_meta.json`.
-10. Invoke internal TTS producer to write `voice.wav`, `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json`.
-    - Use low-level `cosyvoice_ws_tts.py` for short `opening_voice.wav`.
-    - Use robust `tools/robust_episode_tts.py` for episode body `voice.wav`.
-    - If robust TTS fails, mark the episode `failed`, record `failed_step: "tts"`, preserve successful robust chunks, and stop before episode editing.
+10. If TTS credentials are available, invoke internal TTS producer to write `voice.wav`, `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json`. If credentials are missing, update `production_state.json` to `narration_done` and stop.
+    - Use `tools/run_episode_pipeline.py` for the deterministic audio half.
+    - Default episode body TTS is one direct CosyVoice task through `cosyvoice_ws_tts.py`.
+    - Only use robust chunking when explicitly requested or when direct TTS repeatedly fails.
 11. Invoke internal episode editor to write `episode.mp3` and `production_manifest.json`.
 12. Update `production_state.json`.
 
 ## Current MVP Boundary
 
-- Do create or orchestrate: series plan, opening voice, episode brief, script, fact check, narration, TTS voice, timelines, complete spoken `episode.mp3`, and production state.
+- Do create or orchestrate: series plan, opening voice, episode brief, script, optional fact check, narration, TTS voice, timelines, complete spoken `episode.mp3`, and production state.
 - Do not create or add: opening music, ending music, background music, sound effects, music asset IDs, or final music mix.
 - Output is a complete voice-only episode. Human post-production may add music and sound effects later.
 - Do not append run logs to `AGENTS.md`.
@@ -165,11 +201,13 @@ Write valid JSON with these required keys. Add fields when helpful, but preserve
     "default_batch_size": 1,
     "subagents": "disabled_by_default",
     "requires_explicit_start": true,
+    "requires_readiness_check": true,
+    "tts_credential_policy": "environment_or_temporary_chat_secret_never_persisted",
     "episode_body_tts": {
-      "generation_mode": "chunked_external_orchestration",
-      "script": "tools/robust_episode_tts.py",
-      "max_chars_per_task": 300,
-      "retries_per_chunk": 2
+      "generation_mode": "single_task",
+      "script": "skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py",
+      "max_chars_per_task": 10000,
+      "fallback_script": "tools/robust_episode_tts.py"
     }
   },
   "next_step": {
@@ -195,8 +233,7 @@ Use this structure for new series:
     └── ep01-<slug>/
         ├── episode_brief.json
         ├── script_full.md
-        ├── fact_check.md
-        ├── script_meta.json
+        ├── fact_check.md              # optional
         ├── narration.txt
         ├── narration_meta.json
         ├── voice.wav
@@ -225,13 +262,13 @@ Maintain `production_state.json` at series root:
       "episode_dir": "/absolute/path/to/episodes/ep01-why-this-hill-city",
       "episode_brief": "/absolute/path/to/episode_brief.json",
       "script_full": "/absolute/path/to/script_full.md",
-      "fact_check": "/absolute/path/to/fact_check.md",
+      "fact_check": null,
       "narration": "/absolute/path/to/narration.txt",
       "voice": "/absolute/path/to/voice.wav",
       "tts_manifest": "/absolute/path/to/tts_manifest.json",
-      "tts_generation_mode": "chunked_external_orchestration",
-      "tts_chunk_count": 12,
-      "tts_chunk_dir": "/absolute/path/to/voice_robust_chunks",
+      "tts_generation_mode": "single_task",
+      "tts_task_count": 1,
+      "tts_work_dir": "/absolute/path/to/voice_chunks",
       "retryable": true,
       "episode_mp3": "/absolute/path/to/episode.mp3",
       "production_manifest": "/absolute/path/to/production_manifest.json",
@@ -254,7 +291,8 @@ planned | brief_done | script_done | narration_done | tts_done | mp3_done | fail
 
 - If `production_state.json` exists and the user asks to continue, read it first.
 - Resume the first episode with `failed` or incomplete status unless the user asks for another episode.
-- If an episode failed at TTS and has `retryable: true`, rerun robust TTS for that same episode. Reuse successful robust chunks when their signatures match.
+- If an episode failed at TTS and has `retryable: true`, rerun direct TTS first. Use `--use-robust-chunking` only if direct TTS keeps failing.
+- If an episode is `narration_done` only because credentials were missing, ask for the TTS credential and resume at TTS.
 - If all existing episodes are `mp3_done`, produce `next_recommended_episode_no`.
 - Never overwrite an existing completed episode directory; create a new directory only for a new episode.
 - If a step fails, update that episode status to `failed` and record `failed_step` plus `failed_reason`.
@@ -274,7 +312,8 @@ Before finishing production:
 - `narration.txt` exactly matches `narration_meta.json.paragraphs`.
 - `opening_voice.wav`, `voice.wav`, and `episode.mp3` exist and are non-empty.
 - TTS manifests contain `api_key_source`, never the actual API key.
-- Episode body `tts_manifest.json.generation_mode` is `chunked_external_orchestration`.
+- `series_plan.json`, `production_state.json`, Markdown files, and final replies never contain a real API key.
+- Episode body `tts_manifest.json.generation_mode` is normally `single_task`.
 - If TTS failed, `production_state.json` records `failed_step: "tts"` and does not mark the episode `mp3_done`.
 - `production_state.json` marks the produced episode as `mp3_done`.
 - Music and sound effects are marked absent by design.

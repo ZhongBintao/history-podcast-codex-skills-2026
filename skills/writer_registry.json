@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "default_writer": {
+    "skill": "history-script-writer",
+    "fallback_reason": "domain writer is not registered or not available; using history-script-writer as the current stable general-purpose fallback"
+  },
+  "writers": {
+    "history": {
+      "skill": "history-script-writer",
+      "available": true,
+      "domains": ["history", "history_culture", "culture_history"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create only when the brief requires it, the topic is disputed/high-risk, or the user explicitly asks",
+      "fallback_skill": null
+    },
+    "science": {
+      "skill": "science-script-writer",
+      "available": false,
+      "domains": ["science", "popular_science", "technology"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create for claims that depend on current research, quantitative results, medical/health implications, or contested interpretations",
+      "fallback_skill": "history-script-writer"
+    },
+    "humanities": {
+      "skill": "humanities-script-writer",
+      "available": false,
+      "domains": ["humanities", "philosophy", "literature", "arts"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create for disputed attribution, translation, chronology, school/term definitions, or contested interpretations",
+      "fallback_skill": "history-script-writer"
+    },
+    "culture": {
+      "skill": "humanities-script-writer",
+      "available": false,
+      "domains": ["culture", "society", "media"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create for living people, current institutions, disputed claims, or source-sensitive cultural analysis",
+      "fallback_skill": "history-script-writer"
+    },
+    "travel": {
+      "skill": "travel-script-writer",
+      "available": false,
+      "domains": ["travel", "place", "city"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create for current access, opening hours, pricing, safety, or disputed local history",
+      "fallback_skill": "history-script-writer"
+    },
+    "business": {
+      "skill": "business-script-writer",
+      "available": false,
+      "domains": ["business", "economics", "company"],
+      "required_inputs": ["episode_brief.json"],
+      "default_outputs": ["script_full.md"],
+      "optional_outputs": ["fact_check.md"],
+      "fact_check_policy": "create for financial data, current companies, market claims, legal/regulatory claims, or forecasts",
+      "fallback_skill": "history-script-writer"
+    }
+  }
+}

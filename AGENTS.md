@@ -28,11 +28,13 @@
 用户需求
 → podcast-series-showrunner 澄清需求
 → 给出 2-3 个系列方案、推荐方向、每集策划、系列固定片头口播候选
-→ 用户明确说“开始执行/生成第 X 集/跑完整流程”
+→ 用户确认方案
+→ 总导演给出 Production Readiness Check，说明还需要的凭证和配置
+→ 用户明确说“开始执行/生成第 X 集/跑完整流程”并提供所需信息
 → 写入 series_plan.json、series_opening_voice.md/json、production_state.json
 → 生成 opening_voice.wav
 → 生成 episode_brief.json
-→ 生成 script_full.md、fact_check.md、script_meta.json
+→ 生成 script_full.md（必要时生成 fact_check.md）
 → 生成 narration.txt、narration_meta.json
 → tools/run_episode_pipeline.py 生成 voice.wav、真实时间戳、tts_manifest.json、episode.mp3、production_manifest.json
 → tools/validate_production.py 校验产物
@@ -63,13 +65,41 @@ skills/podcast-episode-editor/
 
 - `podcast-series-showrunner`：唯一用户入口，负责系列方案、执行触发、内部调度、状态续跑。
 - `podcast-series-opening-voice-producer`：生成系列固定片头口播文案记录和 `opening_voice.wav`。
-- `podcast-episode-director`：从 `series_plan.json` 生成某一集的 `episode_brief.json`。
-- `history-script-writer`：从 `episode_brief.json` 生成 `script_full.md`、`fact_check.md`、`script_meta.json`。
+- `podcast-episode-director`：从 `series_plan.json` 生成某一集的 `episode_brief.json`，并通过 `skills/writer_registry.json` 选择 writer skill。
+- `history-script-writer`：从 `episode_brief.json` 生成 `script_full.md`；高风险或明确要求时生成 `fact_check.md`。
 - `podcast-narration-adapter`：把审稿脚本转换为干净 TTS 文本 `narration.txt` 和 `narration_meta.json`。
-- `podcast-tts-producer`：说明 TTS 产物契约；长正文默认使用 `tools/robust_episode_tts.py`。
+- `podcast-tts-producer`：说明 TTS 产物契约；正文默认使用 `cosyvoice_ws_tts.py` 单任务生成。
 - `podcast-episode-editor`：拼接 `opening_voice.wav` 和 `voice.wav`，输出 voice-only `episode.mp3`。
 
 默认不使用 subagent。未来如果用户明确要求多集并行，必须按 episode 目录隔离写入并合并 `production_state.json`。
+
+### 播客生产前门槛
+
+总导演在用户确认创意方案后，必须先列出 Production Readiness Check，不得直接开始生产文件或音频。
+
+必须确认：
+
+- 系列名和输出目录/文件夹名。
+- 本次生成第几集或哪几集。
+- 是否强制生成可选 `fact_check.md`。
+- TTS 凭证：`DASHSCOPE_API_KEY`；可选 `DASHSCOPE_WORKSPACE`。
+
+凭证规则：
+
+- 允许用户在聊天中粘贴 API key，但只能作为本轮临时运行凭证。
+- 不得在回复中复述 key。
+- 不得把真实 key 写入 `series_plan.json`、`production_state.json`、manifest、Markdown、日志或最终回复。
+- 所有 TTS manifest 只能记录 `api_key_source: "DASHSCOPE_API_KEY"`。
+- 如果没有 TTS 凭证，只能生成到 `narration_done`，不得调用 TTS、生成假音频或标记 `tts_done`/`mp3_done`。
+
+### 播客 Writer 注册表
+
+写稿 skill 通过 `skills/writer_registry.json` 管理：
+
+- `history` 当前可用，映射到 `history-script-writer`。
+- `science`、`humanities`、`culture`、`travel`、`business` 先预留为 `available: false`。
+- 不可用或未注册的 domain 使用 registry 中的 fallback，并在 `episode_brief.json` 写入 `writer_selection_source: "writer_registry"` 和 `writer_fallback_reason`。
+- 新增 writer skill 时必须遵守最小契约：读取 `episode_brief.json`，生成 `script_full.md`，必要时生成 `fact_check.md`。
 
 ### 微信公众号文章生产
 
@@ -122,8 +152,7 @@ meta.json
     └── ep01-<slug>/
         ├── episode_brief.json
         ├── script_full.md
-        ├── fact_check.md
-        ├── script_meta.json
+        ├── fact_check.md              # optional
         ├── narration.txt
         ├── narration_meta.json
         ├── voice.wav
@@ -167,13 +196,13 @@ planned | brief_done | script_done | narration_done | tts_done | mp3_done | fail
       "episode_dir": "/absolute/path/to/episodes/ep01-title",
       "episode_brief": "/absolute/path/to/episode_brief.json",
       "script_full": "/absolute/path/to/script_full.md",
-      "fact_check": "/absolute/path/to/fact_check.md",
+      "fact_check": null,
       "narration": "/absolute/path/to/narration.txt",
       "voice": "/absolute/path/to/voice.wav",
       "tts_manifest": "/absolute/path/to/tts_manifest.json",
-      "tts_generation_mode": "chunked_external_orchestration",
-      "tts_chunk_count": 12,
-      "tts_chunk_dir": "/absolute/path/to/voice_robust_chunks",
+      "tts_generation_mode": "single_task",
+      "tts_task_count": 1,
+      "tts_work_dir": "/absolute/path/to/voice_chunks",
       "retryable": true,
       "episode_mp3": "/absolute/path/to/episode.mp3",
       "production_manifest": "/absolute/path/to/production_manifest.json",
@@ -194,12 +223,12 @@ tools/run_episode_pipeline.py
 tools/validate_production.py
 ```
 
-### `tools/robust_episode_tts.py`
+### `skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py`
 
-长正文 TTS 默认使用该脚本：
+正文 TTS 默认使用该脚本，单集正文通常不超过 5000 字，因此默认按一次 WebSocket 任务生成：
 
 ```bash
-DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/robust_episode_tts.py \
+DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py \
   --narration /absolute/path/to/narration.txt \
   --meta /absolute/path/to/narration_meta.json \
   --out-dir /absolute/path/to/episode-dir \
@@ -207,19 +236,21 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/robust_episode_tts.py \
   --manifest-name tts_manifest.json \
   --model cosyvoice-v3-flash \
   --voice longsanshu_v3 \
-  --max-chars-per-task 300 \
-  --chunk-silence-ms 450 \
-  --tail-silence-ms 3500 \
-  --retries 2
+  --send-mode combined \
+  --max-chars-per-task 10000 \
+  --chunk-silence-ms 0 \
+  --tail-silence-ms 3500
 ```
 
 行为要求：
 
-- 从脚本位置自动推导仓库根目录，不使用用户机器绝对路径。
-- Python 解释器选择顺序：`PODCAST_AUDIO_PYTHON`、仓库 `.venv/bin/python`、当前 `sys.executable`。
-- 每个外部分段最多重试 2 次。
-- 成功分段按签名复用，支持断点续跑。
-- 失败时写入 `tts_manifest.json.failed_reason`、`failed_chunk_index`、`failed_chunk_dir`。
+- 每集正文默认一次性发送，`tts_manifest.json.generation_mode` 为 `single_task`。
+- `--max-chars-per-task` 默认由上层设为 `10000`，只有超过该长度时底层脚本才会按段落拆成多个任务。
+- 失败时写入 `tts_manifest.json.failed_reason`，不生成假音频或假时间戳。
+
+### `tools/robust_episode_tts.py`
+
+该脚本保留为网络不稳定时的手动兜底，不再是默认正文 TTS 路径。需要恢复外层分段续跑时，在 `tools/run_episode_pipeline.py` 中加 `--use-robust-chunking`。
 
 ### `tools/run_episode_pipeline.py`
 
@@ -260,10 +291,10 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/run_episode_pipeline.py \
 --skip-edit
 --model cosyvoice-v3-flash
 --voice longsanshu_v3
---max-chars-per-task 300
+--max-chars-per-task 10000
 --chunk-silence-ms 450
 --tail-silence-ms 3500
---retries 2
+--use-robust-chunking
 ```
 
 ### `tools/validate_production.py`
@@ -280,7 +311,7 @@ python3 tools/validate_production.py --episode-dir /absolute/path/to/series/epis
 - JSON 可解析。
 - 音频文件存在且非空。
 - `narration.txt` 与 `narration_meta.json.paragraphs` 完全一致。
-- `tts_manifest.json.generation_mode` 为 `chunked_external_orchestration`。
+- `tts_manifest.json.generation_mode` 默认为 `single_task`；历史产物可为 `chunked_external_orchestration`。
 - manifest 不包含真实 API key。
 - `production_manifest.json.edit_scope.music` 和 `sound_effects` 均为 `false`。
 - `production_state.json` 中 episode 状态与真实文件一致。
@@ -293,20 +324,19 @@ python3 tools/validate_production.py --episode-dir /absolute/path/to/series/epis
 model: cosyvoice-v3-flash
 voice: longsanshu_v3
 api: 阿里云百炼 CosyVoice WebSocket API
-opening_generation_mode: chunked
-episode_body_generation_mode: chunked_external_orchestration
-episode_body_script: tools/robust_episode_tts.py
-episode_body_max_chars_per_task: 300
-episode_body_retries_per_chunk: 2
+opening_generation_mode: single_task
+episode_body_generation_mode: single_task
+episode_body_script: skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py
+episode_body_max_chars_per_task: 10000
+fallback_body_script: tools/robust_episode_tts.py
 ```
 
 安全规则：
 
-- API Key 只能通过环境变量传入，例如 `DASHSCOPE_API_KEY`。
+- API Key 优先通过环境变量传入；如用户在聊天中提供，只能作为本轮临时凭证。
 - 不得把 API Key 写入脚本、manifest、Markdown、日志或最终回复。
 - 使用低并发，默认一次只处理一集。
-- 不无限重试；长正文默认每段重试 2 次。
-- 网络断连、WebSocket keepalive timeout、服务端中段断连都视为常见生产条件，必须保留已成功分段以便续跑。
+- 不无限重试；默认正文单任务失败后先保留失败 manifest，必要时再手动启用 `--use-robust-chunking` 兜底。
 
 ## 6. 后续演进方向
 
@@ -346,7 +376,9 @@ episode_body_retries_per_chunk: 2
 - 稳定 WeChat skills
 - `tools/robust_episode_tts.py`
 - `tools/run_episode_pipeline.py`
+- `tools/resolve_writer.py`
 - `tools/validate_production.py`
+- `skills/writer_registry.json`
 - `AGENTS.md`
 - `README.md`
 - `.gitignore`

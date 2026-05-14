@@ -23,13 +23,13 @@ This is the first step that contacts a paid/external TTS API. Treat credentials,
 
 ## Default TTS
 
-For episode body narration, use robust external orchestration by default:
+For episode body narration, use one direct CosyVoice WebSocket task by default:
 
 ```text
-body_generation_mode: chunked_external_orchestration
-body_script: tools/robust_episode_tts.py
-body_max_chars_per_task: 300
-body_retries_per_chunk: 2
+body_generation_mode: single_task
+body_script: skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py
+body_max_chars_per_task: 10000
+fallback_body_script: tools/robust_episode_tts.py
 ```
 
 For short fixed series opening voice, use the lower-level WebSocket script directly:
@@ -42,22 +42,21 @@ endpoint: wss://dashscope.aliyuncs.com/api-ws/v1/inference/
 audio_format: wav
 sample_rate: 24000
 word_timestamp_enabled: true
-opening_generation_mode: chunked
+opening_generation_mode: single_task
 send_mode: combined
-max_chars_per_task: 700
-chunk_silence_ms: 450
+max_chars_per_task: 10000
+chunk_silence_ms: 0
 tail_silence_ms: 3500
 ```
 
 Official behavior to preserve:
 
 - WebSocket authentication uses `Authorization: bearer <api_key>`.
-- Use several short WebSocket tasks by default, not one full-episode task. Long single tasks can cause voice/timbre drift and may return huge merged timestamp spans.
-- For each task, send `run-task`, then one combined `continue-task` text containing all paragraphs in that chunk, then `finish-task`.
+- Use one WebSocket task for normal episode bodies. The pipeline assumes episodes are usually under 5000 Chinese characters.
+- For the task, send `run-task`, then one combined `continue-task` text containing the whole narration, then `finish-task`.
 - Enable `word_timestamp_enabled` in `parameters`.
 - Save timestamp data from `result-generated` events.
-- Save binary audio chunks exactly as received.
-- Concatenate local chunk WAV files and offset every timestamp by the chunk start time plus inserted silence.
+- Save binary audio exactly as received and append tail silence locally.
 
 ## Scripts
 
@@ -79,14 +78,14 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 skills/podcast-tts-producer/scrip
   --model cosyvoice-v3-flash \
   --voice longsanshu_v3 \
   --send-mode combined \
-  --max-chars-per-task 700 \
-  --chunk-silence-ms 450 \
+  --max-chars-per-task 10000 \
+  --chunk-silence-ms 0 \
   --tail-silence-ms 3500
 ```
 
 The script requires the Python package `websockets`. If missing, install it in a local or temporary environment, not by editing this skill.
 
-For episode body narration, use the robust orchestration script:
+If direct TTS repeatedly fails because of network instability, the fallback is the robust orchestration script:
 
 ```bash
 DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/robust_episode_tts.py \
@@ -103,7 +102,7 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/robust_episode_tts.py \
   --retries 2
 ```
 
-The robust script calls `scripts/cosyvoice_ws_tts.py` once per external chunk. Completed chunks are reusable: if a later chunk fails, the next run can reuse earlier successful chunks whose paragraph signature has not changed.
+The robust script calls `scripts/cosyvoice_ws_tts.py` once per external chunk. Completed chunks are reusable, but this path costs more orchestration and creates more handoff files, so do not use it by default.
 
 ## Inputs
 
@@ -134,7 +133,7 @@ tts_manifest.json
 voice_chunks/
 ```
 
-For robust episode body generation, chunk work files live under:
+For robust fallback generation, chunk work files live under:
 
 ```text
 voice_robust_chunks/
@@ -161,10 +160,10 @@ If the API call fails, still write `tts_manifest.json` with `failed_reason`, but
   "model": "cosyvoice-v3-flash",
   "voice": "longsanshu_v3",
   "api_type": "websocket",
-  "generation_mode": "chunked_external_orchestration",
+  "generation_mode": "single_task",
   "send_mode": "combined",
-  "max_chars_per_task": 300,
-  "chunk_silence_ms": 450,
+  "max_chars_per_task": 10000,
+  "chunk_silence_ms": 0,
   "tail_silence_ms": 3500,
   "word_timestamp_enabled": true,
   "input_chars": 4415,
@@ -174,13 +173,9 @@ If the API call fails, still write `tts_manifest.json` with `failed_reason`, but
   "compact_timeline": "/absolute/path/to/voice_timeline_compact.json",
   "license_status": "aliyun_bailian_standard_tts_system_voice",
   "api_key_source": "DASHSCOPE_API_KEY",
-  "orchestrator": "tools/robust_episode_tts.py",
   "retryable": true,
-  "retries_per_chunk": 2,
-  "completed_chunks": [1, 2, 3],
-  "reused_chunks": [],
-  "failed_chunk_index": null,
-  "failed_chunk_dir": null,
+  "task_count": 1,
+  "task_audio_dir": "/absolute/path/to/voice_chunks",
   "failed_reason": null
 }
 ```
@@ -199,7 +194,7 @@ Never include the actual key.
 - `sentences[].start_ms`
 - `sentences[].end_ms`
 - `sentences[].words[]`
-- `chunks[]` with chunk task IDs, paragraph IDs, local audio paths, duration, offset, sentences, and raw events
+- `chunks[]` with task IDs, paragraph IDs, local audio paths, duration, offset, sentences, and raw events
 - raw events when useful for debugging, excluding credentials
 
 `voice_timeline_compact.json` stores paragraph-level timing for downstream work. Derive paragraph spans from returned word timestamps after applying each chunk's offset.
@@ -219,34 +214,32 @@ Do not guess paragraph start/end times when matching fails.
 
 ## Voice Stability And Network Resilience
 
-For full episode body narration, prefer robust external orchestration:
+For full episode body narration, prefer direct single-task generation:
 
-- Keep each external chunk around 300 Chinese characters.
-- Use one WebSocket process per external chunk.
-- Retry a failed external chunk up to 2 times.
-- Preserve successful chunk outputs and reuse them on rerun when paragraph signatures match.
-- If one chunk fails, write `tts_manifest.json.failed_reason`, `failed_chunk_index`, `failed_chunk_dir`, and `completed_chunks`; do not continue to episode editing.
+- Keep the normal episode body under about 5000 Chinese characters.
+- Set `--max-chars-per-task 10000` so one episode becomes one WebSocket task.
+- If direct generation fails, write `tts_manifest.json.failed_reason`; do not continue to episode editing.
+- Use robust external orchestration only as a fallback for repeated network failures or unusually long text.
 
 For short opening voice or lower-level worker use:
 
-- Keep each WebSocket task around 400-800 Chinese characters.
+- Keep each WebSocket task within the provider's practical limit; the default pipeline uses one task for ordinary episode bodies.
 - Group by paragraph boundaries; do not split a sentence in the middle.
 - Within each task, prefer `send_mode=combined` so paragraph boundaries do not become repeated streaming resets. Use `send_mode=paragraph` only for debugging.
-- Insert short neutral silence between chunks so later editing can smooth seams.
 - Add 3-5 seconds of tail silence so the ending does not stop abruptly.
 - Keep `rate` and `pitch` fixed across chunks.
 
 If the user reports sudden voice changes:
 
-- For episode body generation, first use robust orchestration if it was not already used.
-- If robust orchestration is already used, reduce `--max-chars-per-task` from 300 to 220-260.
-- Try another timestamp-supported system voice only after chunking is already in place.
+- First retry direct generation once when the network is stable.
+- If direct generation repeatedly fails, use `tools/run_episode_pipeline.py --use-robust-chunking`.
+- Try another timestamp-supported system voice only after confirming the text is not too long and the network is stable.
 - Avoid Instruct unless using a voice that supports it and the desired style is simple and stable. Instruct can affect emotion but is not a guarantee of timbre consistency.
 
 ## Safety And Cost
 
 - Use low concurrency. One WebSocket task at a time is the default.
-- Avoid infinite retries. For robust body generation, use 2 retries per chunk by default.
+- Avoid infinite retries. Direct body generation should fail fast enough to leave a useful manifest; robust fallback uses 2 retries per chunk by default.
 - Do not test with long full-season text unless the user asks.
 - Keep API keys in environment variables only.
 - If a key appears in user chat, do not repeat it in outputs.
@@ -258,8 +251,7 @@ Before finishing:
 - Confirm `voice.wav` exists and is non-empty.
 - Confirm `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json` are valid JSON.
 - Confirm `tts_manifest.json` has no actual API key.
-- Confirm `generation_mode` is `chunked_external_orchestration` for long-form episode body narration.
+- Confirm `generation_mode` is normally `single_task` for episode body narration.
 - Confirm `word_timestamp_enabled` is true.
-- Confirm robust chunk WAV files exist under `voice_robust_chunks/` for episode body narration.
 - Confirm `failed_reason` is null only when audio and timeline were produced.
 - Confirm the user has a local path or rendered audio link to listen to the result.

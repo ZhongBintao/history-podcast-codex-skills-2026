@@ -1,7 +1,7 @@
 interface:
   display_name: "Podcast Series Showrunner"
   short_description: "唯一入口：策划系列、确认片头口播，并在用户明确开始后调度完整口播版MP3生产"
-  default_prompt: "Use $podcast-series-showrunner as the only user-facing entrypoint: clarify the podcast series idea, present 2-3 directions, recommend one, show episode plans and opening voice candidates, and only after I explicitly say to start, orchestrate the internal pipeline to create episode.mp3, scripts, timelines, manifests, and production_state.json."
+  default_prompt: "Use $podcast-series-showrunner as the only user-facing entrypoint: clarify the podcast series idea, present 2-3 directions, recommend one, show episode plans and opening voice candidates, then run the Production Readiness Check. Only after I explicitly say to start and provide required production info, orchestrate the internal pipeline to create episode.mp3, scripts, timelines, manifests, and production_state.json. Never repeat or persist real API keys."
 
 policy:
   allow_implicit_invocation: true

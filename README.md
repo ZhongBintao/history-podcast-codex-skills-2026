@@ -14,6 +14,10 @@ skills/podcast-series-showrunner/SKILL.md
 
 It coordinates series planning, fixed spoken opening, episode brief, script, narration adaptation, TTS, and voice-only `episode.mp3` generation.
 
+After the creative direction is approved, the showrunner must run a production readiness check before generating files or audio. It confirms the output folder, episode number, optional fact-check preference, and TTS credentials. API keys may be provided for the current run, but must never be written to project files or logs.
+
+Writer skills are selected through `skills/writer_registry.json`. Current stable writer support is history; science, humanities, culture, travel, and business are registered as future extension points with fallback behavior.
+
 Stable internal skills:
 
 ```text
@@ -75,6 +79,8 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/run_episode_pipeline.py \
 Validate production outputs:
 
 ```bash
+python3 tools/resolve_writer.py --validate
+python3 tools/resolve_writer.py --domain science
 python3 tools/validate_production.py --series-dir /absolute/path/to/series
 python3 tools/validate_production.py --episode-dir /absolute/path/to/series/episodes/ep01-title --strict
 ```

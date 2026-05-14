@@ -13,7 +13,7 @@ Convert one episode from `series_plan.json` into an executable `episode_brief.js
 
 ## Current MVP Boundary
 
-- Do create: episode brief, recommended writer skill, narrative angle, structure, fact-check requirements, inherited host persona, inherited voice direction, and avoid rules.
+- Do create: episode brief, recommended writer skill, narrative angle, structure, lightweight fact-check policy, inherited host persona, inherited voice direction, and avoid rules.
 - Do not create: full scripts, `narration.txt`, TTS audio, timestamps, music direction, sound-effect notes, or final mix instructions.
 - Do not override the series identity unless the user explicitly asks for a creative change.
 
@@ -25,20 +25,38 @@ Require `series_plan.json` and `episode_no`. If no target episode is provided fo
 
 1. Parse `series_plan.json`.
 2. Select the requested episode from `episodes`.
-3. Identify `content_domain` and choose `recommended_writer_skill`.
+3. Identify `content_domain` and resolve `recommended_writer_skill` from `skills/writer_registry.json`.
 4. Inherit `series_name`, `target_audience`, `global_style.host_persona`, `global_style.voice_identity`, `global_style.visual_identity`, and `domain_constraints`.
-5. Expand the selected episode into `core_question`, `narrative_angle`, `structure`, `content_modules`, `emotional_arc`, `voice_direction`, `fact_check_requirements`, and `avoid`.
+5. Expand the selected episode into `core_question`, `narrative_angle`, `structure`, `content_modules`, `emotional_arc`, `voice_direction`, lightweight `fact_check_requirements`, and `avoid`.
 6. Write `episode_brief.json` beside `series_plan.json` unless another output folder is specified.
 7. Validate JSON.
 
-## Writer Skill Map
+## Writer Registry
 
-- `history` -> `history-script-writer`
-- `science` -> `science-script-writer`
-- `humanities` -> `humanities-script-writer`
-- `travel` -> `travel-script-writer`
-- `business` -> `business-script-writer`
-- otherwise -> `custom-script-writer`
+Use the registry at:
+
+```text
+skills/writer_registry.json
+```
+
+Selection rules:
+
+- Read `skills/writer_registry.json` before choosing a writer.
+- Match `content_domain` against a writer key or any value in `writers.*.domains`.
+- If the matched writer has `available: true`, set `recommended_writer_skill` to that writer's `skill`.
+- If the matched writer has `available: false`, use its `fallback_skill`, or `default_writer.skill` if no writer-specific fallback exists.
+- If no writer matches, use `default_writer.skill`.
+- Always write `writer_selection_source: "writer_registry"`.
+- Write `writer_fallback_reason: null` only when the selected writer was available directly.
+- When a fallback is used, write a short `writer_fallback_reason` explaining whether the writer was missing or unavailable.
+
+The helper command mirrors the expected selection behavior:
+
+```bash
+python3 tools/resolve_writer.py --domain history
+python3 tools/resolve_writer.py --domain science
+python3 tools/resolve_writer.py --validate
+```
 
 ## Structure Patterns
 
@@ -76,6 +94,8 @@ Humanities default:
   "content_domain": "history",
   "episode_type": "history_culture",
   "recommended_writer_skill": "history-script-writer",
+  "writer_selection_source": "writer_registry",
+  "writer_fallback_reason": null,
   "target_length_chars": 5000,
   "target_audience": ["泛知识用户", "历史爱好者"],
   "core_question": "丝绸之路为什么不是一条固定道路？",
@@ -101,15 +121,17 @@ Humanities default:
     }
   },
   "fact_check_requirements": {
-    "required": true,
+    "required": false,
     "source_level": "reliable_secondary_or_primary_when_possible",
     "mark_uncertainty": true,
+    "create_fact_check_file": "only_for_disputed_or_high_risk_claims",
     "focus": ["概念来源", "关键年代", "地理与政权更替"]
   },
   "avoid": ["强行悬疑", "全程史诗化", "广告腔", "短视频腔"],
   "next_step": {
     "target_skill": "history-script-writer",
-    "expected_outputs": ["script_full.md", "fact_check.md", "script_meta.json"]
+    "expected_outputs": ["script_full.md"],
+    "optional_outputs": ["fact_check.md"]
   }
 }
 ```
@@ -119,6 +141,8 @@ Humanities default:
 - Selected episode exists.
 - `episode_brief.json` is valid JSON.
 - Host persona, voice identity, visual identity, and domain constraints are inherited.
-- `recommended_writer_skill` matches `content_domain`.
+- `recommended_writer_skill` comes from `skills/writer_registry.json`.
+- `writer_selection_source` is `writer_registry`.
+- `writer_fallback_reason` is null for a direct available writer, or explains the fallback.
 - No music, sound-effect, timestamp, or final editing fields are introduced.
 - Next step points to the writer skill.

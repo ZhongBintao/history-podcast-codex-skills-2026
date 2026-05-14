@@ -11,8 +11,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ROBUST_TTS = ROOT / "tools/robust_episode_tts.py"
+DIRECT_TTS = ROOT / "skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py"
 EPISODE_EDITOR = ROOT / "skills/podcast-episode-editor/scripts/build_episode.py"
-BODY_TTS_MODE = "chunked_external_orchestration"
+BODY_TTS_MODE = "single_task"
+ROBUST_TTS_MODE = "chunked_external_orchestration"
+VALID_BODY_TTS_MODES = {BODY_TTS_MODE, ROBUST_TTS_MODE}
 
 
 def load_json(path):
@@ -67,7 +70,7 @@ def tts_complete(episode_dir):
         manifest = load_json(manifest_path)
     except Exception:
         return False
-    return manifest.get("failed_reason") is None and manifest.get("generation_mode") == BODY_TTS_MODE
+    return manifest.get("failed_reason") is None and manifest.get("generation_mode") in VALID_BODY_TTS_MODES
 
 
 def mp3_complete(episode_dir):
@@ -140,9 +143,9 @@ def record_tts_done(state_path, episode_dir):
             "status": "tts_done",
             "voice": str((episode_dir / "voice.wav").resolve()),
             "tts_manifest": str((episode_dir / "tts_manifest.json").resolve()),
-            "tts_generation_mode": BODY_TTS_MODE,
-            "tts_chunk_count": tts_manifest.get("chunk_count"),
-            "tts_chunk_dir": str((episode_dir / "voice_robust_chunks").resolve()),
+            "tts_generation_mode": tts_manifest.get("generation_mode", BODY_TTS_MODE),
+            "tts_task_count": tts_manifest.get("task_count", tts_manifest.get("chunk_count")),
+            "tts_work_dir": tts_manifest.get("task_audio_dir") or tts_manifest.get("chunk_audio_dir"),
             "retryable": True,
             "failed_step": None,
             "failed_reason": None,
@@ -166,9 +169,8 @@ def run_tts(args, state_path, episode_dir, py):
     if not os.environ.get("DASHSCOPE_API_KEY"):
         raise RuntimeError("DASHSCOPE_API_KEY is not set")
 
-    cmd = [
-        py,
-        str(ROBUST_TTS),
+    max_chars = args.max_chars_per_task or (300 if args.use_robust_chunking else 10000)
+    common = [
         "--narration",
         str(episode_dir / "narration.txt"),
         "--meta",
@@ -184,14 +186,32 @@ def run_tts(args, state_path, episode_dir, py):
         "--voice",
         args.voice,
         "--max-chars-per-task",
-        str(args.max_chars_per_task),
-        "--chunk-silence-ms",
-        str(args.chunk_silence_ms),
+        str(max_chars),
         "--tail-silence-ms",
         str(args.tail_silence_ms),
-        "--retries",
-        str(args.retries),
     ]
+    if args.use_robust_chunking:
+        cmd = [
+            py,
+            str(ROBUST_TTS),
+            *common,
+            "--chunk-silence-ms",
+            str(args.chunk_silence_ms),
+            "--retries",
+            str(args.retries),
+        ]
+    else:
+        cmd = [
+            py,
+            str(DIRECT_TTS),
+            *common,
+            "--send-mode",
+            "combined",
+            "--chunk-silence-ms",
+            "0",
+            "--timeout",
+            str(args.timeout),
+        ]
     run(cmd)
     record_tts_done(state_path, episode_dir)
 
@@ -232,9 +252,9 @@ def run_edit(args, state_path, series_dir, episode_dir, py, opening_voice):
             "status": "mp3_done",
             "voice": str((episode_dir / "voice.wav").resolve()),
             "tts_manifest": str((episode_dir / "tts_manifest.json").resolve()),
-            "tts_generation_mode": BODY_TTS_MODE,
-            "tts_chunk_count": tts_manifest.get("chunk_count"),
-            "tts_chunk_dir": str((episode_dir / "voice_robust_chunks").resolve()),
+            "tts_generation_mode": tts_manifest.get("generation_mode", BODY_TTS_MODE),
+            "tts_task_count": tts_manifest.get("task_count", tts_manifest.get("chunk_count")),
+            "tts_work_dir": tts_manifest.get("task_audio_dir") or tts_manifest.get("chunk_audio_dir"),
             "retryable": True,
             "episode_mp3": str((episode_dir / f"{args.episode_slug}.mp3").resolve()),
             "production_manifest": str((episode_dir / "production_manifest.json").resolve()),
@@ -255,10 +275,12 @@ def main():
     parser.add_argument("--skip-edit", action="store_true")
     parser.add_argument("--model", default="cosyvoice-v3-flash")
     parser.add_argument("--voice", default="longsanshu_v3")
-    parser.add_argument("--max-chars-per-task", type=int, default=300)
+    parser.add_argument("--max-chars-per-task", type=int)
     parser.add_argument("--chunk-silence-ms", type=int, default=450)
     parser.add_argument("--tail-silence-ms", type=int, default=3500)
     parser.add_argument("--retries", type=int, default=2)
+    parser.add_argument("--timeout", type=float, default=1200)
+    parser.add_argument("--use-robust-chunking", action="store_true")
     args = parser.parse_args()
 
     started = time.time()

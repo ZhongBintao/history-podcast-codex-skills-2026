@@ -334,11 +334,12 @@ async def run_tts(args):
     paragraphs = split_text_from_meta(meta)
     task_chunks = build_task_chunks(paragraphs, args.max_chars_per_task)
     input_chars = sum(len(text) for _, text in paragraphs)
+    generation_mode = "single_task" if len(task_chunks) == 1 else "chunked"
     manifest = {
         "model": args.model,
         "voice": args.voice,
         "api_type": "websocket",
-        "generation_mode": "chunked",
+        "generation_mode": generation_mode,
         "send_mode": args.send_mode,
         "max_chars_per_task": args.max_chars_per_task,
         "chunk_silence_ms": args.chunk_silence_ms,
@@ -399,7 +400,7 @@ async def run_tts(args):
             "audio_path": str(audio_path),
             "model": args.model,
             "voice": args.voice,
-            "timeline_source": "aliyun_bailian_websocket_word_timestamp_chunked",
+            "timeline_source": f"aliyun_bailian_websocket_word_timestamp_{generation_mode}",
             "sentences": merged_sentences,
             "chunks": raw_chunks,
         }
@@ -421,6 +422,8 @@ async def run_tts(args):
         manifest["speech_end_sec"] = compact["speech_end_sec"]
         manifest["chunk_count"] = len(chunk_results)
         manifest["chunk_audio_dir"] = str(chunk_dir)
+        manifest["task_count"] = len(chunk_results)
+        manifest["task_audio_dir"] = str(chunk_dir)
         manifest["elapsed_sec"] = round(time.time() - started, 3)
         write_json(manifest_path, manifest)
     except Exception as exc:

@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 VALID_STATUSES = {"planned", "brief_done", "script_done", "narration_done", "tts_done", "mp3_done", "failed"}
-BODY_TTS_MODE = "chunked_external_orchestration"
+BODY_TTS_MODE = "single_task"
+LEGACY_BODY_TTS_MODE = "chunked_external_orchestration"
+VALID_BODY_TTS_MODES = {BODY_TTS_MODE, LEGACY_BODY_TTS_MODE}
 
 
 class Report:
@@ -69,11 +71,13 @@ def is_suspicious_secret(value):
         return False
     if value in {"DASHSCOPE_API_KEY", "PODCAST_AUDIO_PYTHON"}:
         return False
+    if "/" in value or "\\" in value:
+        return False
     lowered = value.lower()
     if "dashscope_api_key" in lowered:
         return False
     secret_prefixes = ("sk-", "sk_", "d1.", "ak-")
-    return len(value) >= 20 and (value.startswith(secret_prefixes) or value.count("-") >= 2)
+    return len(value) >= 20 and value.startswith(secret_prefixes)
 
 
 def scan_for_secret_values(obj, report, path):
@@ -114,8 +118,8 @@ def validate_tts_manifest(episode_dir, report, required):
     if not manifest:
         return False
     scan_for_secret_values(manifest, report, manifest_path)
-    if manifest.get("generation_mode") != BODY_TTS_MODE:
-        report.fail(f"tts_manifest generation_mode must be {BODY_TTS_MODE}: {manifest_path}")
+    if manifest.get("generation_mode") not in VALID_BODY_TTS_MODES:
+        report.fail(f"tts_manifest generation_mode must be one of {sorted(VALID_BODY_TTS_MODES)}: {manifest_path}")
     if manifest.get("api_key_source") != "DASHSCOPE_API_KEY":
         report.fail(f"tts_manifest api_key_source must be DASHSCOPE_API_KEY: {manifest_path}")
     if manifest.get("failed_reason"):
@@ -179,7 +183,9 @@ def validate_episode(series_dir, episode_dir, state, strict, report):
         report.fail(f"missing episode directory: {episode_dir}")
         return
     report.ok(f"episode directory exists: {episode_dir}")
-    load_json(episode_dir / "episode_brief.json", report, required=True)
+    brief = load_json(episode_dir / "episode_brief.json", report, required=True)
+    if brief:
+        scan_for_secret_values(brief, report, episode_dir / "episode_brief.json")
     narration_matches(episode_dir, report)
 
     state_episode = state_episode_for_dir(state, episode_dir)
@@ -224,8 +230,12 @@ def main():
     series_dir = infer_series_dir(args)
     state = None
     if series_dir:
-        load_json(series_dir / "series_plan.json", report, required=bool(args.series_dir))
+        series_plan = load_json(series_dir / "series_plan.json", report, required=bool(args.series_dir))
+        if series_plan:
+            scan_for_secret_values(series_plan, report, series_dir / "series_plan.json")
         state = load_json(series_dir / "production_state.json", report, required=bool(args.series_dir))
+        if state:
+            scan_for_secret_values(state, report, series_dir / "production_state.json")
         opening = series_dir / "opening_voice.wav"
         if args.series_dir and opening.exists():
             require_file(opening, report, "opening_voice.wav")
