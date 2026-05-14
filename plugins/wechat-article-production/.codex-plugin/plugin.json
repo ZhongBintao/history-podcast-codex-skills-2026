@@ -1,0 +1,28 @@
+{
+  "name": "wechat-article-production",
+  "version": "0.1.0",
+  "description": "Codex skills for turning completed Chinese podcast narration into a WeChat Official Account article draft.",
+  "author": {
+    "name": "ZhongBintao",
+    "url": "https://github.com/ZhongBintao"
+  },
+  "homepage": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+  "repository": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+  "keywords": ["wechat", "article", "podcast", "codex-skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WeChat Article Production",
+    "shortDescription": "把 narration.txt 转成微信公众号草稿",
+    "longDescription": "将完成的中文播客口播稿改写为公众号文章，选择配图，渲染 HTML，并创建微信公众号草稿。",
+    "developerName": "ZhongBintao",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+    "defaultPrompt": [
+      "把这个 narration.txt 做成公众号草稿",
+      "为这篇口播稿生成公众号文章",
+      "检查公众号文章包是否完整"
+    ],
+    "brandColor": "#16A34A"
+  }
+}

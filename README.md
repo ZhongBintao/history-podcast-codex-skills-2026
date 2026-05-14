@@ -1,51 +1,144 @@
-# History Podcast Codex Skills
+# History Podcast Codex Plugins
 
-Codex skills for Chinese history/knowledge podcast production and WeChat article drafting.
+This repository packages two Codex plugins for Chinese knowledge podcast production:
 
-## Workflows
+- `podcast-production`: plan a podcast series, write episode scripts, adapt narration, run CosyVoice TTS, and build a voice-only `episode.mp3`.
+- `wechat-article-production`: convert a completed `narration.txt` into a WeChat Official Account article draft.
 
-### Podcast Audio Production
+The plugins are designed to be installed together from this repository, while still keeping the podcast and WeChat workflows separate.
+
+## Repository Layout
+
+```text
+.agents/plugins/marketplace.json
+plugins/
+├── podcast-production/
+│   ├── .codex-plugin/plugin.json
+│   ├── skills/
+│   │   ├── podcast-series-showrunner/
+│   │   ├── history-script-writer/
+│   │   ├── podcast-episode-director/
+│   │   ├── podcast-narration-adapter/
+│   │   ├── podcast-tts-producer/
+│   │   ├── podcast-episode-editor/
+│   │   ├── podcast-series-opening-voice-producer/
+│   │   └── writer_registry.json
+│   └── scripts/
+│       ├── resolve_writer.py
+│       ├── run_episode_pipeline.py
+│       ├── robust_episode_tts.py
+│       └── validate_production.py
+└── wechat-article-production/
+    ├── .codex-plugin/plugin.json
+    └── skills/
+        ├── wechat-article-pipeline/
+        ├── wechat-narration-article/
+        ├── wechat-image-director/
+        └── wechat-html-publisher/
+```
+
+## How A New User Uses This
+
+1. Give the user this repository URL:
+
+   ```text
+   https://github.com/ZhongBintao/history-podcast-codex-skills
+   ```
+
+2. The user installs the repository as a Codex plugin source. Codex reads `.agents/plugins/marketplace.json` and exposes two installable plugins:
+
+   - `Podcast Production`
+   - `WeChat Article Production`
+
+3. For podcast creation, start with:
+
+   ```text
+   Use podcast-series-showrunner to plan a Chinese history podcast series.
+   ```
+
+   The showrunner is the only user-facing podcast entrypoint. It will clarify the idea, propose directions, ask for production readiness, then orchestrate the internal skills.
+
+4. For WeChat article creation, start with:
+
+   ```text
+   Use wechat-article-pipeline to turn this narration.txt into a WeChat draft.
+   ```
+
+   The WeChat workflow creates a draft only. It must not publish or mass-send.
+
+## Podcast Workflow
 
 User-facing entrypoint:
 
 ```text
-skills/podcast-series-showrunner/SKILL.md
+plugins/podcast-production/skills/podcast-series-showrunner/
 ```
 
-It coordinates series planning, fixed spoken opening, episode brief, script, narration adaptation, TTS, and voice-only `episode.mp3` generation.
-
-After the creative direction is approved, the showrunner must run a production readiness check before generating files or audio. It confirms the output folder, episode number, optional fact-check preference, and TTS credentials. API keys may be provided for the current run, but must never be written to project files or logs.
-
-Writer skills are selected through `skills/writer_registry.json`. Current stable writer support is history; science, humanities, culture, travel, and business are registered as future extension points with fallback behavior.
-
-Stable internal skills:
+Internal components:
 
 ```text
-skills/podcast-series-opening-voice-producer/
-skills/podcast-episode-director/
-skills/history-script-writer/
-skills/podcast-narration-adapter/
-skills/podcast-tts-producer/
-skills/podcast-episode-editor/
+podcast-series-opening-voice-producer
+podcast-episode-director
+history-script-writer
+podcast-narration-adapter
+podcast-tts-producer
+podcast-episode-editor
 ```
 
-The audio pipeline produces:
+Output flow:
+
+```text
+series_plan.json
+→ opening_voice.wav
+→ episode_brief.json
+→ script_full.md
+→ narration.txt + narration_meta.json
+→ voice.wav
+→ episode.mp3
+```
+
+The audio workflow produces a complete voice-only episode:
 
 ```text
 opening_voice.wav -> short silence -> voice.wav -> tail silence -> episode.mp3
 ```
 
-It does not generate, choose, manage, or mix music or sound effects.
+It does not create music, sound effects, or a final mixed music version.
 
-### WeChat Article Production
+Before producing audio, the showrunner must confirm:
+
+- output series folder
+- episode number or range
+- whether to force `fact_check.md`
+- `DASHSCOPE_API_KEY` for CosyVoice TTS
+
+API keys may be provided for one run, but must never be written to project files, manifests, Markdown, logs, or final replies.
+
+## WeChat Article Workflow
 
 User-facing entrypoint:
 
 ```text
-skills/wechat-article-pipeline/SKILL.md
+plugins/wechat-article-production/skills/wechat-article-pipeline/
 ```
 
-It turns a completed `narration.txt` podcast narration into a WeChat Official Account draft. The narration can cover history, humanities, culture, science, social science, or other knowledge podcast topics.
+Internal components:
+
+```text
+wechat-narration-article
+wechat-image-director
+wechat-html-publisher
+```
+
+Default flow:
+
+```text
+narration.txt
+→ .wechat-work/article.json
+→ images/ + image_manifest.json
+→ article.html
+→ WeChat draft
+```
 
 Final successful output:
 
@@ -56,19 +149,7 @@ images/
 wechat_upload_result.json
 ```
 
-Temporary machine files use `.wechat-work/` and are deleted after successful draft upload. The workflow does not produce intermediate Markdown.
-
-Internal components:
-
-```text
-skills/wechat-history-article/
-skills/wechat-image-director/
-skills/wechat-html-publisher/
-```
-
-The WeChat workflow creates drafts only. It must not publish or mass-send.
-
-WeChat credentials are read from environment variables or the local private file:
+WeChat credentials are read from environment variables first, then from:
 
 ```text
 ~/.codex/wechat.env
@@ -81,14 +162,35 @@ WECHAT_APPID=
 WECHAT_APPSECRET=
 ```
 
-Default author is `知识的小世界`; comments are enabled; content source URL is empty.
+Defaults:
 
-## Deterministic Tools
+```env
+WECHAT_AUTHOR=知识的小世界
+WECHAT_CONTENT_SOURCE_URL=
+WECHAT_NEED_OPEN_COMMENT=1
+WECHAT_ONLY_FANS_CAN_COMMENT=0
+```
 
-Run the audio half after `narration.txt`, `narration_meta.json`, and `opening_voice.wav` exist:
+## Deterministic Commands
+
+Run from the podcast plugin root:
 
 ```bash
-DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/run_episode_pipeline.py \
+cd plugins/podcast-production
+```
+
+Validate writer routing:
+
+```bash
+python3 scripts/resolve_writer.py --validate
+python3 scripts/resolve_writer.py --domain history
+python3 scripts/resolve_writer.py --domain science
+```
+
+Run the deterministic audio half after `narration.txt`, `narration_meta.json`, and `opening_voice.wav` exist:
+
+```bash
+DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 scripts/run_episode_pipeline.py \
   --series-dir /absolute/path/to/series \
   --episode-dir /absolute/path/to/series/episodes/ep01-title
 ```
@@ -96,10 +198,8 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 tools/run_episode_pipeline.py \
 Validate production outputs:
 
 ```bash
-python3 tools/resolve_writer.py --validate
-python3 tools/resolve_writer.py --domain science
-python3 tools/validate_production.py --series-dir /absolute/path/to/series
-python3 tools/validate_production.py --episode-dir /absolute/path/to/series/episodes/ep01-title --strict
+python3 scripts/validate_production.py --series-dir /absolute/path/to/series
+python3 scripts/validate_production.py --episode-dir /absolute/path/to/series/episodes/ep01-title --strict
 ```
 
 ## Requirements
@@ -108,7 +208,7 @@ python3 tools/validate_production.py --episode-dir /absolute/path/to/series/epis
 - `ffmpeg` and `ffprobe` on `PATH`
 - Python package `websockets`
 - `DASHSCOPE_API_KEY` for CosyVoice TTS
-- WeChat upload environment variables when creating drafts:
+- WeChat draft credentials when using the WeChat plugin:
   - `WECHAT_APPID`
   - `WECHAT_APPSECRET`
 
@@ -118,13 +218,51 @@ Optional Python override:
 export PODCAST_AUDIO_PYTHON=/path/to/python
 ```
 
-## Future Direction
+## Adding Future Writer Skills
 
-The next planned evolution is to integrate the WeChat article workflow into the podcast showrunner flow. Once an episode narration is stable, a separate subagent can run `wechat-article-pipeline` while the main podcast workflow continues generating TTS and `episode.mp3`.
+`history-script-writer` is the first writer implementation, not the hard-coded center of the workflow.
 
-The goal is one coordinated production run that creates both:
+Future domains should be added as sibling writer skills inside:
 
-- a listenable podcast episode
-- a corresponding WeChat draft
+```text
+plugins/podcast-production/skills/
+```
 
-Publishing and mass-send actions remain human-approved only.
+Examples:
+
+```text
+science-script-writer/
+humanities-script-writer/
+culture-script-writer/
+```
+
+Every writer skill must follow the same minimum contract:
+
+```text
+Input: episode_brief.json
+Required output: script_full.md
+Optional output: fact_check.md
+Do not create narration, audio, timestamps, music, sound-effect notes, or final mix files.
+```
+
+To upgrade the plugin with a new writer:
+
+1. Create `plugins/podcast-production/skills/<domain>-script-writer/SKILL.md`.
+2. Add `agents/openai.yaml` and set `allow_implicit_invocation: false`, because writers are internal modules.
+3. Update `plugins/podcast-production/skills/writer_registry.json`:
+   - set the domain's `skill` to the new writer skill name
+   - set `available: true`
+   - keep `required_inputs: ["episode_brief.json"]`
+   - keep `default_outputs` including `script_full.md`
+   - keep `optional_outputs` including `fact_check.md`
+4. Run:
+
+   ```bash
+   cd plugins/podcast-production
+   python3 scripts/resolve_writer.py --validate
+   python3 scripts/resolve_writer.py --domain science
+   ```
+
+5. Test one full planning run through `podcast-series-showrunner` and confirm `episode_brief.json.recommended_writer_skill` points to the new writer.
+
+Because downstream skills consume only `script_full.md` and optional `fact_check.md`, adding a new writer should not require changes to narration adaptation, TTS, editing, or the WeChat article plugin.

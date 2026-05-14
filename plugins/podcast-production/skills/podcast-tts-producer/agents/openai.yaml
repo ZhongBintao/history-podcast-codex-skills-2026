@@ -1,0 +1,7 @@
+interface:
+  display_name: "Podcast TTS Producer"
+  short_description: "内部模块：由系列总导演调用，调用CosyVoice生成音频和真实时间戳"
+  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read narration.txt and narration_meta.json, call CosyVoice with DASHSCOPE_API_KEY, and create voice.wav, timelines, and tts_manifest.json."
+
+policy:
+  allow_implicit_invocation: false

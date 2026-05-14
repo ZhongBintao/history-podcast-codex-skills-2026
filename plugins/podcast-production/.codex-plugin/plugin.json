@@ -1,0 +1,28 @@
+{
+  "name": "podcast-production",
+  "version": "0.1.0",
+  "description": "Codex skills for Chinese knowledge podcast planning, script writing, narration, TTS, and voice-only episode production.",
+  "author": {
+    "name": "ZhongBintao",
+    "url": "https://github.com/ZhongBintao"
+  },
+  "homepage": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+  "repository": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+  "keywords": ["podcast", "history", "tts", "codex-skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Podcast Production",
+    "shortDescription": "策划中文知识播客并生成完整口播版 episode.mp3",
+    "longDescription": "从系列策划、单集 brief、写稿、口播适配到 CosyVoice TTS 和 voice-only MP3 生成的 Codex 播客生产插件。",
+    "developerName": "ZhongBintao",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/ZhongBintao/history-podcast-codex-skills",
+    "defaultPrompt": [
+      "帮我策划一个中文历史播客系列",
+      "继续生成这个系列的下一集",
+      "检查我的播客生产产物是否完整"
+    ],
+    "brandColor": "#2563EB"
+  }
+}

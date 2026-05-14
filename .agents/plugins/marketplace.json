@@ -1,0 +1,32 @@
+{
+  "name": "history-podcast-codex-skills",
+  "interface": {
+    "displayName": "History Podcast Codex Skills"
+  },
+  "plugins": [
+    {
+      "name": "podcast-production",
+      "source": {
+        "source": "local",
+        "path": "./plugins/podcast-production"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "wechat-article-production",
+      "source": {
+        "source": "local",
+        "path": "./plugins/wechat-article-production"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

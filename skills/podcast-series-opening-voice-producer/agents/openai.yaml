@@ -1,4 +1,0 @@
-interface:
-  display_name: "Podcast Series Opening Voice Producer"
-  short_description: "内部模块：由系列总导演调用，合成已确认的系列固定片头口播"
-  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Use the already approved opening voice text, create series_opening_voice.md/json if needed, then synthesize opening_voice.wav and opening_voice_tts_manifest.json."
