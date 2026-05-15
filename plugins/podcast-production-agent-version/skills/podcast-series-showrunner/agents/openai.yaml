@@ -1,0 +1,7 @@
+interface:
+  display_name: "Podcast Series Showrunner"
+  short_description: "唯一入口：确认系列方案后默认一集一个 subagent 生产完整口播版 MP3"
+  default_prompt: "Use $podcast-series-showrunner as the only user-facing entrypoint: clarify the podcast series idea, present directions, confirm the season plan and fixed opening voice, then after I provide series_dir, target episodes, and production readiness details, create one subagent task packet per episode. Episode subagents must only write their own episode_dir. The main agent validates outputs and is the only actor allowed to update production_state.json. Never repeat or persist real API keys."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,28 @@
+{
+  "name": "podcast-production-agent-version",
+  "version": "0.1.0",
+  "description": "Subagent-first Codex plugin for Chinese knowledge podcast series planning and per-episode voice-only audio production.",
+  "author": {
+    "name": "ZhongBintao",
+    "url": "https://github.com/ZhongBintao"
+  },
+  "homepage": "https://github.com/ZhongBintao/podcast-skills",
+  "repository": "https://github.com/ZhongBintao/podcast-skills",
+  "keywords": ["podcast", "tts", "subagent", "codex-skill"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Podcast Production Agent Version",
+    "shortDescription": "用 showrunner 默认编排一集一个 subagent 的播客生产流程",
+    "longDescription": "将 podcast-series-showrunner 作为唯一入口。确认系列方案后，主 agent 负责生产准备、任务分发、验收与 production_state.json；每个 episode subagent 独立生成 episode_brief、narration、TTS 音频和 voice-only episode.mp3。",
+    "developerName": "ZhongBintao",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "websiteURL": "https://github.com/ZhongBintao/podcast-skills",
+    "defaultPrompt": [
+      "用 showrunner 策划一个中文知识播客系列",
+      "为这个系列并行生成第 1 到 3 集",
+      "验收这些播客 episode 并更新生产状态"
+    ],
+    "brandColor": "#0F766E"
+  }
+}

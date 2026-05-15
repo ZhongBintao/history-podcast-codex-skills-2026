@@ -1,8 +1,9 @@
 # Podcast Codex Plugins
 
-This repository packages two Codex plugins for Chinese knowledge podcast production:
+This repository packages Codex plugins for Chinese knowledge podcast production:
 
 - `podcast-production`: plan a podcast series, write final episode narration, run CosyVoice TTS, and build a voice-only `episode.mp3`.
+- `podcast-production-agent-version`: a subagent-first rewrite where `podcast-series-showrunner` creates one episode subagent per target episode and the main agent owns validation plus `production_state.json`.
 - `wechat-article-production`: convert a completed `narration.txt` into a WeChat Official Account article draft.
 
 The plugins are designed to be installed together from this repository, while still keeping the podcast and WeChat workflows separate.
@@ -27,6 +28,17 @@ plugins/
 │       ├── run_episode_pipeline.py
 │       ├── robust_episode_tts.py
 │       └── validate_production.py
+├── podcast-production-agent-version/
+│   ├── .codex-plugin/plugin.json
+│   ├── README.md
+│   ├── skills/
+│   │   └── podcast-series-showrunner/
+│   └── scripts/
+│       ├── build_episode.py
+│       ├── cosyvoice_ws_tts.py
+│       ├── run_episode_pipeline.py
+│       ├── robust_episode_tts.py
+│       └── validate_production.py
 └── wechat-article-production/
     ├── .codex-plugin/plugin.json
     └── skills/
@@ -41,12 +53,13 @@ plugins/
 1. Give the user this repository URL:
 
    ```text
-   https://github.com/ZhongBintao/history-podcast-codex-skills
+   https://github.com/ZhongBintao/podcast-skills
    ```
 
-2. The user installs the repository as a Codex plugin source. Codex reads `.agents/plugins/marketplace.json` and exposes two installable plugins:
+2. The user installs the repository as a Codex plugin source. Codex reads `.agents/plugins/marketplace.json` and exposes three installable plugins:
 
    - `Podcast Production`
+   - `Podcast Production Agent Version`
    - `WeChat Article Production`
 
 3. For podcast creation, start with:
@@ -56,6 +69,14 @@ plugins/
    ```
 
    The showrunner is the only user-facing podcast entrypoint. It clarifies the idea, proposes directions, asks for production readiness, then orchestrates the internal skills.
+
+   For the subagent-first version, start with:
+
+   ```text
+   Use podcast-series-showrunner from podcast-production-agent-version to plan a podcast series.
+   ```
+
+   After the season plan is confirmed, ask it to generate target episodes. It will create one subagent task packet per episode, validate the returned outputs, and update `production_state.json` itself.
 
 4. For WeChat article creation, start with:
 
@@ -110,6 +131,35 @@ opening_voice.wav -> short silence -> voice.wav -> tail silence -> episode.mp3
 ```
 
 It does not create music, sound effects, or a final mixed music version.
+
+## Podcast Agent-Version Workflow
+
+User-facing entrypoint:
+
+```text
+plugins/podcast-production-agent-version/skills/podcast-series-showrunner/
+```
+
+Default flow:
+
+```text
+showrunner confirms series plan and opening voice
+→ main agent checks series_dir, target episodes, opening_voice.wav, scripts, and DASHSCOPE_API_KEY
+→ main agent creates one subagent task packet per episode
+→ each subagent writes only its episode_dir
+→ main agent validates episode_brief.json, narration.txt, TTS outputs, episode.mp3, and manifests
+→ main agent updates production_state.json
+```
+
+Episode subagents use direct scripts:
+
+```text
+scripts/cosyvoice_ws_tts.py
+scripts/build_episode.py
+scripts/validate_production.py
+```
+
+`scripts/run_episode_pipeline.py` is retained for main-agent controlled runs because it writes `production_state.json`.
 
 Before producing audio, the showrunner must confirm:
 

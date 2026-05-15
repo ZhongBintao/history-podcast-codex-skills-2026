@@ -1,7 +1,7 @@
 {
-  "name": "history-podcast-codex-skills",
+  "name": "podcast-skills",
   "interface": {
-    "displayName": "History Podcast Codex Skills"
+    "displayName": "Podcast Skills"
   },
   "plugins": [
     {
@@ -9,6 +9,18 @@
       "source": {
         "source": "local",
         "path": "./plugins/podcast-production"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "podcast-production-agent-version",
+      "source": {
+        "source": "local",
+        "path": "./plugins/podcast-production-agent-version"
       },
       "policy": {
         "installation": "AVAILABLE",
