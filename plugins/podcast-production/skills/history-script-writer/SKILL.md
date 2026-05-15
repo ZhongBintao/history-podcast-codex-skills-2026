@@ -1,6 +1,6 @@
 ---
 name: history-script-writer
-description: 内部模块：历史文化播客写稿。Normally invoked by podcast-series-showrunner after episode_brief.json is created. Produces script_full.md by default, with optional fact_check.md for high-risk or explicitly required episodes. Do not expose as the default user-facing entrypoint.
+description: 内部模块：历史文化播客写稿。Normally invoked by podcast-series-showrunner after episode_brief.json is created. Produces narration.txt by default, with optional fact_check.md for high-risk or explicitly required episodes. Do not expose as the default user-facing entrypoint.
 ---
 
 # History Script Writer
@@ -9,9 +9,11 @@ Internal module. Normal users should enter through `podcast-series-showrunner`.
 
 ## Role
 
-Write the full draft script for a historical or history-culture podcast episode from `episode_brief.json`. Produce human-reviewable prose. Create a separate fact-check file only when the brief marks fact checking as required, the topic is disputed/high-risk, or the user explicitly asks.
+Write the final spoken narration for a historical or history-culture podcast episode from `episode_brief.json`. `narration.txt` is both the human-reviewable master text and the TTS input.
 
-Keep this skill focused on content writing. Leave clean TTS narration, sound-effect marks, timestamps, audio, and final mixing to downstream skills.
+Create a separate `fact_check.md` only when the brief marks fact checking as required, the topic is disputed/high-risk, or the user explicitly asks.
+
+Keep this skill focused on spoken content. Leave audio, timestamps, editing, manifests, and final mixing to downstream production tools.
 
 ## Inputs
 
@@ -30,22 +32,24 @@ Use these fields when present:
 - `structure`
 - `content_modules`
 - `knowledge_anchors`
+- `historical_anchors`
 - `emotional_arc`
 - `host_persona`
+- `voice_direction`
 - `domain_constraints`
 - `fact_check_requirements`
 - `avoid`
 
-If the brief is not historical or does not recommend `history-script-writer`, check `writer_fallback_reason`. If this skill was selected as a registry fallback, continue as a general spoken-script writer while preserving the brief's domain constraints. Otherwise say so briefly and ask whether to continue.
+If the brief is not historical or does not recommend `history-script-writer`, check `writer_fallback_reason`. If this skill was selected as a registry fallback, continue as a general spoken-narration writer while preserving the brief's domain constraints. Otherwise say so briefly and ask whether to continue.
 
 ## Writer Extension Contract
 
-This skill is one implementation of the shared writer contract. Future science, humanities, culture, travel, or business writers should keep the same minimum interface:
+This skill is one implementation of the shared writer contract. Future science, humanities, culture, travel, or business writers must keep the same minimum interface:
 
 - Input: `episode_brief.json`.
-- Required output: `script_full.md`.
+- Required output: `narration.txt`.
 - Optional output: `fact_check.md`.
-- Do not create narration, audio, timestamps, music, sound-effect notes, or final mix files.
+- Do not create audio, timestamps, music, sound-effect notes, manifests, or final mix files.
 - Respect `fact_check_requirements.required` and create `fact_check.md` only when required by the brief, topic risk, or user request.
 
 The writer selected in `episode_brief.json.recommended_writer_skill` comes from `skills/writer_registry.json`. Do not hard-code new domain routing inside this skill.
@@ -55,21 +59,20 @@ The writer selected in `episode_brief.json.recommended_writer_skill` comes from 
 Write the outputs beside `episode_brief.json` unless the user specifies another folder:
 
 ```text
-script_full.md
+narration.txt
 fact_check.md optional
 ```
 
 ## Workflow
 
 1. Parse `episode_brief.json`.
-2. Confirm the task is historical or history-culture.
+2. Confirm the task is historical or history-culture, or that this writer is being used as the selected fallback.
 3. Extract the core question, narrative angle, modules, anchors, voice persona, and avoid rules.
 4. Gather or verify historical facts when the brief requires fact checking. For unstable, disputed, niche, or easily misremembered claims, use reliable sources instead of memory.
-5. Draft `script_full.md` around the brief's structure and emotional arc.
+5. Draft `narration.txt` as final spoken Chinese narration, shaped around the brief's structure and emotional arc.
 6. If fact checking is required, draft a concise `fact_check.md` as production-only verification notes. Mark only important claims as supported, interpretive, uncertain, or needs review.
-7. Do not create `script_meta.json` by default; `production_state.json` already tracks paths and status.
 
-## Script Style
+## Narration Style
 
 Write in Chinese for a spoken podcast host.
 
@@ -79,19 +82,19 @@ Follow the host persona:
 - Like sharing a serious discovery with a friend.
 - Avoid marketing tone, sensationalism, and internet gag cadence.
 
-The script should:
+The narration should:
 
 - Answer the `core_question`.
 - Follow `narrative_angle`.
-- Use the requested `structure` without making section transitions stiff.
-- Keep paragraphs readable for human review.
+- Use the requested `structure` without visible headings.
+- Keep paragraphs readable for human review and suitable for direct TTS.
 - Prefer concrete scenes, mechanisms, and evidence over vague atmosphere.
 - Clearly separate known facts, archaeological interpretation, colonial textual accounts, and modern scholarly debate.
 - Keep the target length close to `target_length_chars` when feasible. A draft may be shorter for testing, but production should aim near the target.
 
 ## Opening Craft
 
-The first spoken paragraph must be written as a crafted cold open, not a reusable template. Do not default to broad topic framing.
+The first spoken paragraph must be a crafted cold open, not a reusable template. Do not default to broad topic framing.
 
 Avoid formulaic openings such as:
 
@@ -110,26 +113,17 @@ Choose one concrete entry instead:
 - a human action visible in the scene: carrying water, walking a route, copying a text, rebuilding a gate
 - a precise question that unsettles the obvious answer
 
-The opening may be quiet, but it must have narrative tension. It should make the listener feel “I had not looked at it this way,” without sounding like a short-video hook. Vary openings across episodes in the same series; never reuse the same sentence skeleton.
+The opening may be quiet, but it must have narrative tension. It should make the listener feel "I had not looked at it this way," without sounding like a short-video hook. Vary openings across episodes in the same series; never reuse the same sentence skeleton.
 
-The script may include Markdown headings for review, for example:
+## Narration Cleanliness
 
-```markdown
-# 第 1 集：雨林里的时间机器
+`narration.txt` must be pure spoken text:
 
-## 反常识开场
-
-...
-```
-
-Do not include:
-
-- TTS pronunciation tags.
-- Emotion tags such as `[calm]`.
-- Sound-effect labels.
-- Timestamp guesses.
-- Fact-check notes inside the spoken body.
-- Internal production comments inside the spoken body.
+- Use paragraphs separated by blank lines.
+- Do not include Markdown headings, bullet lists, tables, links, footnotes, timestamps, emotion tags, pronunciation tags, SSML, source notes, or production comments.
+- Do not include fact-check notes in the spoken body.
+- Do not include music, sound-effect, or editing directions.
+- Keep punctuation natural for Chinese TTS.
 
 ## Fact Check
 
@@ -165,8 +159,7 @@ For history topics, be especially careful with:
 
 Before finishing:
 
-- Confirm `script_full.md` exists.
-- Confirm `script_full.md` follows the brief and does not contain sound-effect or TTS tags.
-- If `fact_check.md` is created, confirm it is separate from the script.
-- Confirm historical uncertainty is marked in the script or fact-check notes instead of smoothed over.
-- Confirm the next step points to `podcast-narration-adapter`.
+- Confirm `narration.txt` exists.
+- Confirm `narration.txt` follows the brief and is clean spoken text.
+- If `fact_check.md` is created, confirm it is separate from the narration.
+- Confirm historical uncertainty is marked in the narration or fact-check notes instead of smoothed over.

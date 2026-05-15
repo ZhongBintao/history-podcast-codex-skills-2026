@@ -2,7 +2,7 @@
 
 This repository packages two Codex plugins for Chinese knowledge podcast production:
 
-- `podcast-production`: plan a podcast series, write episode scripts, adapt narration, run CosyVoice TTS, and build a voice-only `episode.mp3`.
+- `podcast-production`: plan a podcast series, write final episode narration, run CosyVoice TTS, and build a voice-only `episode.mp3`.
 - `wechat-article-production`: convert a completed `narration.txt` into a WeChat Official Account article draft.
 
 The plugins are designed to be installed together from this repository, while still keeping the podcast and WeChat workflows separate.
@@ -18,7 +18,6 @@ plugins/
 │   │   ├── podcast-series-showrunner/
 │   │   ├── history-script-writer/
 │   │   ├── podcast-episode-director/
-│   │   ├── podcast-narration-adapter/
 │   │   ├── podcast-tts-producer/
 │   │   ├── podcast-episode-editor/
 │   │   ├── podcast-series-opening-voice-producer/
@@ -56,7 +55,7 @@ plugins/
    Use podcast-series-showrunner to plan a Chinese history podcast series.
    ```
 
-   The showrunner is the only user-facing podcast entrypoint. It will clarify the idea, propose directions, ask for production readiness, then orchestrate the internal skills.
+   The showrunner is the only user-facing podcast entrypoint. It clarifies the idea, proposes directions, asks for production readiness, then orchestrates the internal skills.
 
 4. For WeChat article creation, start with:
 
@@ -80,21 +79,28 @@ Internal components:
 podcast-series-opening-voice-producer
 podcast-episode-director
 history-script-writer
-podcast-narration-adapter
 podcast-tts-producer
 podcast-episode-editor
 ```
 
-Output flow:
+Default model-produced flow:
 
 ```text
 series_plan.json
-→ opening_voice.wav
 → episode_brief.json
-→ script_full.md
-→ narration.txt + narration_meta.json
-→ voice.wav
+→ narration.txt + fact_check.md(optional)
+```
+
+Script/API-produced flow:
+
+```text
+voice.wav
+→ voice_timeline_raw.json
+→ voice_timeline_compact.json
+→ tts_manifest.json
 → episode.mp3
+→ production_manifest.json
+→ production_state.json update
 ```
 
 The audio workflow produces a complete voice-only episode:
@@ -187,7 +193,7 @@ python3 scripts/resolve_writer.py --domain history
 python3 scripts/resolve_writer.py --domain science
 ```
 
-Run the deterministic audio half after `narration.txt`, `narration_meta.json`, and `opening_voice.wav` exist:
+Run the deterministic audio half after `narration.txt` and `opening_voice.wav` exist:
 
 ```bash
 DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 scripts/run_episode_pipeline.py \
@@ -240,9 +246,9 @@ Every writer skill must follow the same minimum contract:
 
 ```text
 Input: episode_brief.json
-Required output: script_full.md
+Required output: narration.txt
 Optional output: fact_check.md
-Do not create narration, audio, timestamps, music, sound-effect notes, or final mix files.
+Do not create audio, timestamps, music, sound-effect notes, manifests, or final mix files.
 ```
 
 To upgrade the plugin with a new writer:
@@ -253,8 +259,8 @@ To upgrade the plugin with a new writer:
    - set the domain's `skill` to the new writer skill name
    - set `available: true`
    - keep `required_inputs: ["episode_brief.json"]`
-   - keep `default_outputs` including `script_full.md`
-   - keep `optional_outputs` including `fact_check.md`
+   - keep `default_outputs: ["narration.txt"]`
+   - set a clear `fact_check_policy`
 4. Run:
 
    ```bash
@@ -265,4 +271,4 @@ To upgrade the plugin with a new writer:
 
 5. Test one full planning run through `podcast-series-showrunner` and confirm `episode_brief.json.recommended_writer_skill` points to the new writer.
 
-Because downstream skills consume only `script_full.md` and optional `fact_check.md`, adding a new writer should not require changes to narration adaptation, TTS, editing, or the WeChat article plugin.
+Because downstream tools consume `narration.txt`, adding a new writer should not require changes to TTS, editing, or the WeChat article plugin.

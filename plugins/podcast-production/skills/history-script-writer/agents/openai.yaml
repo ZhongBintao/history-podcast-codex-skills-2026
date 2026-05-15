@@ -1,7 +1,7 @@
 interface:
   display_name: "History Script Writer"
   short_description: "内部模块：由系列总导演调用，根据episode_brief生成历史播客正文和事实核查"
-  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read episode_brief.json and create script_full.md by default. Create fact_check.md only when the brief or topic risk requires it. Do not create script_meta.json unless explicitly requested."
+  default_prompt: "Internal module normally invoked by $podcast-series-showrunner. Read episode_brief.json and create clean final narration.txt by default. Create fact_check.md only when the brief or topic risk requires it."
 
 policy:
   allow_implicit_invocation: false

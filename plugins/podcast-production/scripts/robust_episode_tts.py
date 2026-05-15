@@ -36,6 +36,27 @@ def write_text(path, text):
     Path(path).write_text(text.strip() + "\n", encoding="utf-8")
 
 
+def derive_paragraphs(narration_path):
+    raw = Path(narration_path).read_text(encoding="utf-8")
+    blocks = [block.strip() for block in raw.split("\n\n")]
+    paragraphs = []
+    for block in blocks:
+        text = "\n".join(line.strip() for line in block.splitlines() if line.strip()).strip()
+        if not text:
+            continue
+        paragraphs.append(
+            {
+                "id": f"p{len(paragraphs) + 1:03d}",
+                "text": text,
+                "char_count": len(text),
+                "role": "narrator",
+            }
+        )
+    if not paragraphs:
+        raise RuntimeError(f"narration.txt has no speakable paragraphs: {narration_path}")
+    return paragraphs
+
+
 def chunk_signature(chunk):
     payload = json.dumps(
         [{"id": p.get("id"), "text": p.get("text")} for p in chunk],
@@ -129,7 +150,6 @@ def offset_sentence(sentence, offset_ms, index):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--narration", required=True)
-    parser.add_argument("--meta", required=True)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--output-prefix", default="voice")
     parser.add_argument("--manifest-name", default="tts_manifest.json")
@@ -149,8 +169,7 @@ def main():
     work_dir = out_dir / f"{args.output_prefix}_robust_chunks"
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    source_meta = load_json(args.meta)
-    paragraphs = source_meta.get("paragraphs", [])
+    paragraphs = derive_paragraphs(args.narration)
     chunks = split_chunks(paragraphs, args.max_chars_per_task)
     input_chars = sum(len(p["text"]) for p in paragraphs)
 
@@ -194,21 +213,15 @@ def main():
             chunk_dir = work_dir / f"chunk_{index:03d}"
             chunk_dir.mkdir(parents=True, exist_ok=True)
             chunk_narration = chunk_dir / "narration.txt"
-            chunk_meta = chunk_dir / "narration_meta.json"
             signature = chunk_signature(chunk)
             signature_path = chunk_dir / "chunk_signature.txt"
             write_text(chunk_narration, "\n\n".join(p["text"] for p in chunk))
-            chunk_meta_data = dict(source_meta)
-            chunk_meta_data["paragraphs"] = chunk
-            write_json(chunk_meta, chunk_meta_data)
 
             cmd = [
                 py,
                 str(TTS_SCRIPT),
                 "--narration",
                 str(chunk_narration),
-                "--meta",
-                str(chunk_meta),
                 "--out-dir",
                 str(chunk_dir),
                 "--output-prefix",
@@ -262,6 +275,9 @@ def main():
                     raise RuntimeError(f"chunk {index} failed after retries: {last_error}")
 
             chunk_manifest = load_json(chunk_dir / "tts_manifest.json")
+            chunk_compact = load_json(chunk_dir / "voice_timeline_compact.json")
+            for para, source_para in zip(chunk_compact.get("paragraphs", []), chunk):
+                para["id"] = source_para["id"]
             if chunk_manifest.get("failed_reason"):
                 failed_chunk_index = index
                 failed_chunk_dir = str(chunk_dir)
@@ -280,7 +296,7 @@ def main():
                     "attempts_used": attempts_used,
                     "audio_path": chunk_dir / "voice.wav",
                     "raw": load_json(chunk_dir / "voice_timeline_raw.json"),
-                    "compact": load_json(chunk_dir / "voice_timeline_compact.json"),
+                    "compact": chunk_compact,
                     "manifest": chunk_manifest,
                 }
             )

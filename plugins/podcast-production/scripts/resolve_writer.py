@@ -41,8 +41,7 @@ def resolve_writer(domain, registry):
             "writer_selection_source": "writer_registry",
             "writer_fallback_reason": None,
             "required_inputs": matched.get("required_inputs", ["episode_brief.json"]),
-            "default_outputs": matched.get("default_outputs", ["script_full.md"]),
-            "optional_outputs": matched.get("optional_outputs", ["fact_check.md"]),
+            "default_outputs": matched.get("default_outputs", ["narration.txt"]),
             "fact_check_policy": matched.get("fact_check_policy"),
         }
 
@@ -64,8 +63,7 @@ def resolve_writer(domain, registry):
         "writer_selection_source": "writer_registry",
         "writer_fallback_reason": reason,
         "required_inputs": ["episode_brief.json"],
-        "default_outputs": ["script_full.md"],
-        "optional_outputs": ["fact_check.md"],
+        "default_outputs": ["narration.txt"],
         "fact_check_policy": "follow the selected writer skill and episode brief",
     }
 
@@ -90,8 +88,8 @@ def validate_registry(registry):
             errors.append(f"{key}: domains must be non-empty")
         if writer.get("required_inputs") != ["episode_brief.json"]:
             errors.append(f"{key}: required_inputs must be ['episode_brief.json']")
-        if "script_full.md" not in (writer.get("default_outputs") or []):
-            errors.append(f"{key}: default_outputs must include script_full.md")
+        if writer.get("default_outputs") != ["narration.txt"]:
+            errors.append(f"{key}: default_outputs must be ['narration.txt']")
         if writer.get("available") is False and not (writer.get("fallback_skill") or default_skill):
             errors.append(f"{key}: unavailable writer needs fallback_skill or default_writer.skill")
     return errors

@@ -16,7 +16,7 @@ This is the first step that contacts a paid/external TTS API. Treat credentials,
 ## Boundary
 
 - Do create: `voice.wav`, `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json`.
-- Do use: `narration.txt`, `narration_meta.json`, and environment variable `DASHSCOPE_API_KEY`.
+- Do use: `narration.txt` and environment variable `DASHSCOPE_API_KEY`.
 - Do not create: sound effects, context packets for effects, final episode mix, intro/outro assets, or publishing files.
 - Do not estimate timestamps. Use only timestamps returned by the TTS API.
 - Do not write API keys into scripts, manifests, logs, Markdown, or terminal output.
@@ -53,6 +53,7 @@ Official behavior to preserve:
 
 - WebSocket authentication uses `Authorization: bearer <api_key>`.
 - Use one WebSocket task for normal episode bodies. The pipeline assumes episodes are usually under 5000 Chinese characters.
+- The script derives paragraph IDs from blank-line-separated paragraphs in `narration.txt`.
 - For the task, send `run-task`, then one combined `continue-task` text containing the whole narration, then `finish-task`.
 - Enable `word_timestamp_enabled` in `parameters`.
 - Save timestamp data from `result-generated` events.
@@ -63,7 +64,7 @@ Official behavior to preserve:
 Use the low-level bundled script for short text or individual worker chunks:
 
 ```text
-scripts/cosyvoice_ws_tts.py
+skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py
 ```
 
 Typical command:
@@ -71,7 +72,6 @@ Typical command:
 ```bash
 DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py \
   --narration /absolute/path/to/narration.txt \
-  --meta /absolute/path/to/narration_meta.json \
   --out-dir /absolute/path/to/output-dir \
   --output-prefix voice \
   --manifest-name tts_manifest.json \
@@ -90,7 +90,6 @@ If direct TTS repeatedly fails because of network instability, the fallback is t
 ```bash
 DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 scripts/robust_episode_tts.py \
   --narration /absolute/path/to/narration.txt \
-  --meta /absolute/path/to/narration_meta.json \
   --out-dir /absolute/path/to/episode-dir \
   --output-prefix voice \
   --manifest-name tts_manifest.json \
@@ -102,7 +101,7 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 scripts/robust_episode_tts.py \
   --retries 2
 ```
 
-The robust script calls `scripts/cosyvoice_ws_tts.py` once per external chunk. Completed chunks are reusable, but this path costs more orchestration and creates more handoff files, so do not use it by default.
+The robust script calls the low-level TTS script once per external chunk. Completed chunks are reusable, but this path costs more orchestration and creates more handoff files, so do not use it by default.
 
 ## Inputs
 
@@ -110,7 +109,6 @@ Require:
 
 ```text
 narration.txt
-narration_meta.json
 ```
 
 Optional:
@@ -180,78 +178,30 @@ If the API call fails, still write `tts_manifest.json` with `failed_reason`, but
 }
 ```
 
-Never include the actual key.
-
-## Timeline Rules
-
-`voice_timeline_raw.json` stores API-derived sentence/word timing. Preserve:
-
-- `audio_path`
-- `model`
-- `voice`
-- `timeline_source`
-- `sentences[].original_text`
-- `sentences[].start_ms`
-- `sentences[].end_ms`
-- `sentences[].words[]`
-- `chunks[]` with task IDs, paragraph IDs, local audio paths, duration, offset, sentences, and raw events
-- raw events when useful for debugging, excluding credentials
-
-`voice_timeline_compact.json` stores paragraph-level timing for downstream work. Derive paragraph spans from returned word timestamps after applying each chunk's offset.
-
-If a paragraph cannot be matched, mark it with:
+`voice_timeline_compact.json` must contain paragraph-level records derived from `narration.txt`:
 
 ```json
 {
-  "id": "p001",
-  "text": "...",
-  "match_status": "needs_review",
-  "error": "no returned sentence matched this paragraph"
+  "audio_path": "/absolute/path/to/voice.wav",
+  "duration_sec": 123.4,
+  "speech_end_sec": 119.9,
+  "tail_silence_sec": 3.5,
+  "paragraphs": [
+    {
+      "id": "p001",
+      "start_sec": 0.0,
+      "end_sec": 12.3,
+      "text": "第一段口播文本。",
+      "match_status": "matched"
+    }
+  ]
 }
 ```
 
-Do not guess paragraph start/end times when matching fails.
-
-## Voice Stability And Network Resilience
-
-For full episode body narration, prefer direct single-task generation:
-
-- Keep the normal episode body under about 5000 Chinese characters.
-- Set `--max-chars-per-task 10000` so one episode becomes one WebSocket task.
-- If direct generation fails, write `tts_manifest.json.failed_reason`; do not continue to episode editing.
-- Use robust external orchestration only as a fallback for repeated network failures or unusually long text.
-
-For short opening voice or lower-level worker use:
-
-- Keep each WebSocket task within the provider's practical limit; the default pipeline uses one task for ordinary episode bodies.
-- Group by paragraph boundaries; do not split a sentence in the middle.
-- Within each task, prefer `send_mode=combined` so paragraph boundaries do not become repeated streaming resets. Use `send_mode=paragraph` only for debugging.
-- Add 3-5 seconds of tail silence so the ending does not stop abruptly.
-- Keep `rate` and `pitch` fixed across chunks.
-
-If the user reports sudden voice changes:
-
-- First retry direct generation once when the network is stable.
-- If direct generation repeatedly fails, use `scripts/run_episode_pipeline.py --use-robust-chunking`.
-- Try another timestamp-supported system voice only after confirming the text is not too long and the network is stable.
-- Avoid Instruct unless using a voice that supports it and the desired style is simple and stable. Instruct can affect emotion but is not a guarantee of timbre consistency.
-
-## Safety And Cost
-
-- Use low concurrency. One WebSocket task at a time is the default.
-- Avoid infinite retries. Direct body generation should fail fast enough to leave a useful manifest; robust fallback uses 2 retries per chunk by default.
-- Do not test with long full-season text unless the user asks.
-- Keep API keys in environment variables only.
-- If a key appears in user chat, do not repeat it in outputs.
-
 ## Quality Checklist
 
-Before finishing:
-
-- Confirm `voice.wav` exists and is non-empty.
-- Confirm `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json` are valid JSON.
-- Confirm `tts_manifest.json` has no actual API key.
-- Confirm `generation_mode` is normally `single_task` for episode body narration.
-- Confirm `word_timestamp_enabled` is true.
-- Confirm `failed_reason` is null only when audio and timeline were produced.
-- Confirm the user has a local path or rendered audio link to listen to the result.
+- `narration.txt` exists, is non-empty, and contains clean spoken paragraphs.
+- `DASHSCOPE_API_KEY` is available before calling TTS.
+- `voice.wav`, raw timeline, compact timeline, and `tts_manifest.json` are created.
+- Manifests record `api_key_source` only, never the key value.
+- Compact timeline paragraph IDs are stable for the run and ordered as `p001`, `p002`, `p003`.

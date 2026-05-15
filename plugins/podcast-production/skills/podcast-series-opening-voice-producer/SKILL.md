@@ -95,7 +95,6 @@ Use the bundled TTS script from `podcast-tts-producer`:
 ```bash
 DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 skills/podcast-tts-producer/scripts/cosyvoice_ws_tts.py \
   --narration /absolute/path/to/opening_voice_narration.txt \
-  --meta /absolute/path/to/opening_voice_narration_meta.json \
   --out-dir /absolute/path/to/series-folder \
   --output-prefix opening_voice \
   --manifest-name opening_voice_tts_manifest.json \
@@ -104,7 +103,7 @@ DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" python3 skills/podcast-tts-producer/scrip
   --max-chars-per-task 700
 ```
 
-The temporary `opening_voice_narration.txt` and `opening_voice_narration_meta.json` may remain in the folder as traceable TTS inputs.
+The temporary `opening_voice_narration.txt` may remain in the folder as a traceable TTS input.
 
 ## Quality Checklist
 

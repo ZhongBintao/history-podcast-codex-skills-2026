@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -49,14 +50,22 @@ def require_file(path, label):
     return path.resolve()
 
 
-def narration_matches(episode_dir):
+def validate_narration(episode_dir):
     narration = require_file(episode_dir / "narration.txt", "narration.txt")
-    meta_path = require_file(episode_dir / "narration_meta.json", "narration_meta.json")
-    meta = load_json(meta_path)
-    rebuilt = "\n\n".join(p.get("text", "") for p in meta.get("paragraphs", [])).strip()
-    actual = narration.read_text(encoding="utf-8").strip()
-    if actual != rebuilt:
-        raise RuntimeError("narration.txt does not match narration_meta.json paragraphs")
+    text = narration.read_text(encoding="utf-8").strip()
+    if not text:
+        raise RuntimeError("narration.txt has no speakable text")
+    forbidden = [
+        (r"(?m)^\s{0,3}#{1,6}\s+", "Markdown heading"),
+        (r"(?m)^\s*[-*+]\s+", "Markdown list"),
+        (r"\[[^\]]+\]\([^)]+\)", "Markdown link"),
+        (r"<[^>\n]+>", "TTS or markup tag"),
+        (r"\[[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\]", "timestamp"),
+        (r"(?i)\b(fact[-_ ]?check|production note|制作备注|事实核查)\b", "production note"),
+    ]
+    for pattern, label in forbidden:
+        if re.search(pattern, text):
+            raise RuntimeError(f"narration.txt contains {label}; keep it clean for TTS")
 
 
 def tts_complete(episode_dir):
@@ -173,8 +182,6 @@ def run_tts(args, state_path, episode_dir, py):
     common = [
         "--narration",
         str(episode_dir / "narration.txt"),
-        "--meta",
-        str(episode_dir / "narration_meta.json"),
         "--out-dir",
         str(episode_dir),
         "--output-prefix",
@@ -290,7 +297,7 @@ def main():
     state_path = require_file(series_dir / "production_state.json", "production_state.json")
     require_file(series_dir / "series_plan.json", "series_plan.json")
     require_file(episode_dir / "episode_brief.json", "episode_brief.json")
-    narration_matches(episode_dir)
+    validate_narration(episode_dir)
     opening_voice = require_file(args.opening_voice or (series_dir / "opening_voice.wav"), "opening_voice.wav")
 
     try:

@@ -14,7 +14,7 @@ Convert one episode from `series_plan.json` into an executable `episode_brief.js
 ## Current MVP Boundary
 
 - Do create: episode brief, recommended writer skill, narrative angle, structure, lightweight fact-check policy, inherited host persona, inherited voice direction, and avoid rules.
-- Do not create: full scripts, `narration.txt`, TTS audio, timestamps, music direction, sound-effect notes, or final mix instructions.
+- Do not create: narration, TTS audio, timestamps, music direction, sound-effect notes, or final mix instructions.
 - Do not override the series identity unless the user explicitly asks for a creative change.
 
 ## Inputs
@@ -26,7 +26,7 @@ Require `series_plan.json` and `episode_no`. If no target episode is provided fo
 1. Parse `series_plan.json`.
 2. Select the requested episode from `episodes`.
 3. Identify `content_domain` and resolve `recommended_writer_skill` from the plugin registry at `skills/writer_registry.json`.
-4. Inherit `series_name`, `target_audience`, `global_style.host_persona`, `global_style.voice_identity`, `global_style.visual_identity`, and `domain_constraints`.
+4. Inherit `series_name`, `target_audience`, `global_style.host_persona`, `global_style.voice_identity`, and `domain_constraints`.
 5. Expand the selected episode into `core_question`, `narrative_angle`, `structure`, `content_modules`, `emotional_arc`, `voice_direction`, lightweight `fact_check_requirements`, and `avoid`.
 6. Write `episode_brief.json` beside `series_plan.json` unless another output folder is specified.
 7. Validate JSON.
@@ -127,12 +127,7 @@ Humanities default:
     "create_fact_check_file": "only_for_disputed_or_high_risk_claims",
     "focus": ["概念来源", "关键年代", "地理与政权更替"]
   },
-  "avoid": ["强行悬疑", "全程史诗化", "广告腔", "短视频腔"],
-  "next_step": {
-    "target_skill": "history-script-writer",
-    "expected_outputs": ["script_full.md"],
-    "optional_outputs": ["fact_check.md"]
-  }
+  "avoid": ["强行悬疑", "全程史诗化", "广告腔", "短视频腔"]
 }
 ```
 
@@ -140,9 +135,8 @@ Humanities default:
 
 - Selected episode exists.
 - `episode_brief.json` is valid JSON.
-- Host persona, voice identity, visual identity, and domain constraints are inherited.
+- Host persona, voice identity, and domain constraints are inherited.
 - `recommended_writer_skill` comes from `skills/writer_registry.json`.
 - `writer_selection_source` is `writer_registry`.
 - `writer_fallback_reason` is null for a direct available writer, or explains the fallback.
 - No music, sound-effect, timestamp, or final editing fields are introduced.
-- Next step points to the writer skill.

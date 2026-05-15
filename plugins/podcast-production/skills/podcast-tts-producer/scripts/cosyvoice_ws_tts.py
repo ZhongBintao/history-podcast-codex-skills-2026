@@ -12,16 +12,33 @@ from pathlib import Path
 ENDPOINT = "wss://dashscope.aliyuncs.com/api-ws/v1/inference/"
 
 
-def load_json(path):
-    return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
 def write_json(path, data):
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
-def split_text_from_meta(meta):
-    return [(p["id"], p["text"]) for p in meta.get("paragraphs", []) if p.get("text")]
+def derive_paragraphs(narration_path):
+    raw = Path(narration_path).read_text(encoding="utf-8")
+    blocks = [block.strip() for block in raw.split("\n\n")]
+    paragraphs = []
+    for block in blocks:
+        text = "\n".join(line.strip() for line in block.splitlines() if line.strip()).strip()
+        if not text:
+            continue
+        paragraphs.append(
+            {
+                "id": f"p{len(paragraphs) + 1:03d}",
+                "text": text,
+                "char_count": len(text),
+                "role": "narrator",
+            }
+        )
+    if not paragraphs:
+        raise RuntimeError(f"narration.txt has no speakable paragraphs: {narration_path}")
+    return paragraphs
+
+
+def paragraph_pairs(paragraphs):
+    return [(p["id"], p["text"]) for p in paragraphs if p.get("text")]
 
 
 def build_task_chunks(paragraphs, max_chars):
@@ -87,7 +104,7 @@ def dedupe_sentences(events):
     return records
 
 
-def compact_paragraphs(meta, sentences):
+def compact_paragraphs(paragraphs, sentences):
     ordered_words = []
     for sent in sentences:
         for word in sent.get("words") or []:
@@ -102,7 +119,7 @@ def compact_paragraphs(meta, sentences):
     cursor = 0
     skippable = set(" \t\r\n“”\"'《》〈〉")
     punctuation = set("，。！？：；、,.!?;:()（）")
-    for para in meta.get("paragraphs", []):
+    for para in paragraphs:
         text = para.get("text", "")
         matched = []
         local_cursor = cursor
@@ -330,10 +347,10 @@ async def run_tts(args):
     compact_path = out_dir / f"{prefix}_timeline_compact.json"
     manifest_path = out_dir / args.manifest_name
 
-    meta = load_json(args.meta)
-    paragraphs = split_text_from_meta(meta)
-    task_chunks = build_task_chunks(paragraphs, args.max_chars_per_task)
-    input_chars = sum(len(text) for _, text in paragraphs)
+    paragraphs = derive_paragraphs(args.narration)
+    pairs = paragraph_pairs(paragraphs)
+    task_chunks = build_task_chunks(pairs, args.max_chars_per_task)
+    input_chars = sum(len(text) for _, text in pairs)
     generation_mode = "single_task" if len(task_chunks) == 1 else "chunked"
     manifest = {
         "model": args.model,
@@ -406,7 +423,7 @@ async def run_tts(args):
         }
         write_json(raw_path, raw)
 
-        paragraphs_compact = compact_paragraphs(meta, merged_sentences)
+        paragraphs_compact = compact_paragraphs(paragraphs, merged_sentences)
         ends = [p.get("end_sec") for p in paragraphs_compact if isinstance(p.get("end_sec"), (int, float))]
         compact = {
             "audio_path": str(audio_path),
@@ -436,7 +453,6 @@ async def run_tts(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--narration", required=True)
-    parser.add_argument("--meta", required=True)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--model", default="cosyvoice-v3-flash")
     parser.add_argument("--voice", default="longsanshu_v3")
@@ -454,12 +470,6 @@ def main():
     parser.add_argument("--output-prefix", default="voice")
     parser.add_argument("--manifest-name", default="tts_manifest.json")
     args = parser.parse_args()
-
-    narration = Path(args.narration).read_text(encoding="utf-8")
-    meta = load_json(args.meta)
-    meta_text = "\n\n".join(p["text"] for p in meta.get("paragraphs", []))
-    if narration.strip() != meta_text.strip():
-        raise RuntimeError("narration.txt does not match narration_meta.json paragraphs")
 
     asyncio.run(run_tts(args))
 

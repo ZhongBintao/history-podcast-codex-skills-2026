@@ -1,10 +1,10 @@
 # History Podcast Codex Plugins 交接文档
 
-更新时间：2026-05-14
+更新时间：2026-05-15
 
 ## 仓库定位
 
-本仓库现在是一个双插件 Codex 仓库：
+本仓库是一个双插件 Codex 仓库：
 
 - `plugins/podcast-production/`：中文知识播客生产插件。
 - `plugins/wechat-article-production/`：播客口播稿转微信公众号草稿插件。
@@ -25,7 +25,6 @@ plugins/podcast-production/skills/podcast-series-showrunner/
 plugins/podcast-production/skills/podcast-series-opening-voice-producer/
 plugins/podcast-production/skills/podcast-episode-director/
 plugins/podcast-production/skills/history-script-writer/
-plugins/podcast-production/skills/podcast-narration-adapter/
 plugins/podcast-production/skills/podcast-tts-producer/
 plugins/podcast-production/skills/podcast-episode-editor/
 ```
@@ -48,8 +47,7 @@ plugins/podcast-production/scripts/validate_production.py
 → series_plan.json
 → opening_voice.wav
 → episode_brief.json
-→ writer skill 生成 script_full.md 和可选 fact_check.md
-→ podcast-narration-adapter 生成 narration.txt 和 narration_meta.json
+→ writer skill 生成 narration.txt 和可选 fact_check.md
 → scripts/run_episode_pipeline.py 生成 voice.wav、timeline、episode.mp3
 → scripts/validate_production.py 校验产物
 ```
@@ -68,7 +66,7 @@ plugins/podcast-production/scripts/validate_production.py
 
 ```text
 Input: episode_brief.json
-Required output: script_full.md
+Required output: narration.txt
 Optional output: fact_check.md
 ```
 
@@ -85,7 +83,7 @@ Optional output: fact_check.md
    python3 scripts/resolve_writer.py --domain science
    ```
 
-后续 `podcast-narration-adapter`、TTS、剪辑和 WeChat 插件只依赖 `script_full.md` / `narration.txt`，不应因新增 writer 而改动。
+后续 TTS、剪辑和 WeChat 插件只依赖 `narration.txt`，不应因新增 writer 而改动。
 
 ## 微信插件
 

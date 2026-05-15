@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 
-VALID_STATUSES = {"planned", "brief_done", "script_done", "narration_done", "tts_done", "mp3_done", "failed"}
+VALID_STATUSES = {"planned", "brief_done", "narration_done", "tts_done", "mp3_done", "failed"}
 BODY_TTS_MODE = "single_task"
 LEGACY_BODY_TTS_MODE = "chunked_external_orchestration"
 VALID_BODY_TTS_MODES = {BODY_TTS_MODE, LEGACY_BODY_TTS_MODE}
@@ -94,21 +95,27 @@ def scan_for_secret_values(obj, report, path):
         report.fail(f"manifest appears to contain a secret value: {path}")
 
 
-def narration_matches(episode_dir, report):
+def validate_narration(episode_dir, report):
     narration = episode_dir / "narration.txt"
-    meta_path = episode_dir / "narration_meta.json"
     if not require_file(narration, report, "narration.txt"):
         return False
-    meta = load_json(meta_path, report)
-    if not meta:
-        return False
-    paragraphs = meta.get("paragraphs") or []
-    rebuilt = "\n\n".join(p.get("text", "") for p in paragraphs).strip()
     actual = narration.read_text(encoding="utf-8").strip()
-    if actual != rebuilt:
-        report.fail(f"narration.txt does not match narration_meta.json paragraphs: {episode_dir}")
+    if not actual:
+        report.fail(f"narration.txt has no speakable text: {episode_dir}")
         return False
-    report.ok(f"narration text matches metadata: {episode_dir}")
+    forbidden = [
+        (r"(?m)^\s{0,3}#{1,6}\s+", "Markdown heading"),
+        (r"(?m)^\s*[-*+]\s+", "Markdown list"),
+        (r"\[[^\]]+\]\([^)]+\)", "Markdown link"),
+        (r"<[^>\n]+>", "TTS or markup tag"),
+        (r"\[[0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?\]", "timestamp"),
+        (r"(?i)\b(fact[-_ ]?check|production note|制作备注|事实核查)\b", "production note"),
+    ]
+    for pattern, label in forbidden:
+        if re.search(pattern, actual):
+            report.fail(f"narration.txt contains {label}: {episode_dir}")
+            return False
+    report.ok(f"narration.txt is clean for TTS: {episode_dir}")
     return True
 
 
@@ -186,7 +193,7 @@ def validate_episode(series_dir, episode_dir, state, strict, report):
     brief = load_json(episode_dir / "episode_brief.json", report, required=True)
     if brief:
         scan_for_secret_values(brief, report, episode_dir / "episode_brief.json")
-    narration_matches(episode_dir, report)
+    validate_narration(episode_dir, report)
 
     state_episode = state_episode_for_dir(state, episode_dir)
     status = state_episode.get("status") if state_episode else None
