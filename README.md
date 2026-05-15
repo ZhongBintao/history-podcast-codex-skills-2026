@@ -1,4 +1,4 @@
-# History Podcast Codex Plugins
+# Podcast Codex Plugins
 
 This repository packages two Codex plugins for Chinese knowledge podcast production:
 
