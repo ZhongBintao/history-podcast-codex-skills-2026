@@ -10,6 +10,12 @@ podcast-series-showrunner
 
 After the user confirms the series concept, season plan, and fixed opening voice, the showrunner collects production readiness information and creates one standard task packet per target episode. Each episode subagent owns only its own `episode_dir`; the main agent owns validation, status reporting, and `production_state.json`.
 
+The complete spoken sequence is:
+
+```text
+fixed opening_voice.wav -> episode greeting in narration.txt -> episode body -> preview/farewell closing -> goodbye
+```
+
 ## Key Behavior
 
 - `podcast-series-showrunner` is the only core skill.
@@ -18,6 +24,8 @@ After the user confirms the series concept, season plan, and fixed opening voice
 - Subagents must not modify `production_state.json`.
 - The main agent validates outputs and updates `production_state.json`.
 - Real DashScope credentials must stay in `DASHSCOPE_API_KEY`; task packets and manifests may reference only the environment variable name.
+- Each episode's `narration.txt` starts with a natural host greeting after `opening_voice.wav` and before the episode body.
+- Non-final episodes close with a light next-episode preview and goodbye; final or single-episode series close with a series farewell and goodbye.
 
 ## Production Readiness
 

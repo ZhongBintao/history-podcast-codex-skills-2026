@@ -151,6 +151,14 @@ showrunner confirms series plan and opening voice
 → main agent updates production_state.json
 ```
 
+Each generated episode keeps the fixed opening separate from the body narration:
+
+```text
+opening_voice.wav -> episode greeting -> episode body -> next preview or series farewell -> goodbye
+```
+
+The greeting, preview, and goodbye are style-guided rather than fixed templates, so the episode can keep a warmer human voice without adding music, effects, or production notes.
+
 Episode subagents use direct scripts:
 
 ```text

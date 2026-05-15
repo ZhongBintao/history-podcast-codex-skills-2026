@@ -45,12 +45,15 @@ The main agent must:
 2. Read `production_state.json` if it exists.
 3. Inspect existing `episodes/` directories.
 4. Resolve target episode numbers or ranges.
-5. Resolve plugin script paths.
-6. Ensure fixed opening voice exists before episode subagents start.
-7. Spawn one episode subagent per target episode.
-8. Validate each completed episode.
-9. Update `production_state.json` exactly once per episode outcome.
-10. Summarize success, failures, output paths, and next recommended episode.
+5. Determine for each target episode whether it is the final episode in `series_plan.json.episodes`.
+6. For non-final episodes, derive the next episode title and a light preview direction from the next planned episode.
+7. For final episodes, derive a series farewell direction from the series logline, arc, and selected direction.
+8. Resolve plugin script paths.
+9. Ensure fixed opening voice exists before episode subagents start.
+10. Spawn one episode subagent per target episode.
+11. Validate each completed episode.
+12. Update `production_state.json` exactly once per episode outcome.
+13. Summarize success, failures, output paths, and next recommended episode.
 
 ## Production Readiness Check
 
@@ -177,6 +180,19 @@ The brief must include:
     "voice_tone": "克制、清晰、口语化但不过度娱乐",
     "delivery_notes": ["句子不要过长", "重大概念前后保留自然停顿", "避免戏剧化表演"]
   },
+  "episode_opening_greeting_policy": {
+    "required": true,
+    "position": "after fixed opening_voice.wav and before the episode cold open",
+    "style": "自然、简短、有老钟和听众在场感，不使用固定模板或营销式开场"
+  },
+  "episode_closing_policy": {
+    "required": true,
+    "is_final_episode": false,
+    "next_episode_title": "绿洲为什么会成为世界的中转站",
+    "next_episode_preview": "从一座绿洲城看道路、补给、税收和信仰如何交汇。",
+    "series_farewell": null,
+    "style": "回扣本集主题，轻轻预告下一集，用一句自然告别收束；不催订阅，不写制作备注"
+  },
   "domain_constraints": {},
   "fact_check_requirements": {
     "required": false,
@@ -202,7 +218,11 @@ Each episode subagent writes `narration.txt` as final spoken Chinese narration:
 - About `target_length_chars` characters when feasible.
 - Pure text with blank-line paragraph breaks.
 - No Markdown, headings, bullets, links, timestamps, SSML, pronunciation tags, TTS tags, source notes, fact-check notes, production comments, music, effects, or edit directions.
-- The first paragraph must be a crafted cold open, not a reusable template.
+- The first paragraph must be a natural greeting after the fixed `opening_voice.wav` and before the episode cold open.
+- The greeting should be short, warm, and in 老钟's voice; it may vary freely by episode, but must not become a fixed template, ad-like opening, subscription prompt, or self-explaining production note.
+- After the greeting, enter a crafted cold open or the core narrative. The cold open must not be a reusable template.
+- Non-final episodes must end by briefly returning to this episode's core idea, lightly previewing the next episode, and saying a natural goodbye.
+- Final episodes must end with a series-level farewell and a natural goodbye; do not preview a nonexistent next episode.
 - Prefer concrete scenes, mechanisms, evidence, and a restrained host voice.
 - Distinguish known facts, interpretation, uncertainty, and disputes when relevant.
 
@@ -249,12 +269,17 @@ Use this default prompt for every episode subagent. Fill every placeholder befor
 - anchors: {anchors}
 - voice_direction: {voice_direction}
 - opening_hook: {opening_hook}
+- is_final_episode: {is_final_episode}
+- next_episode_title: {next_episode_title}
+- next_episode_preview: {next_episode_preview}
+- series_farewell: {series_farewell}
+- closing_direction: {closing_direction}
 - host_persona: 老钟，好奇、克制、像和朋友分享一个认真发现
 
 ## 执行步骤
 
 1. 创建 episode_dir，写 episode_brief.json，并验证 JSON 有效。
-2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。
+2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。第一段必须是固定片头之后、单集正文之前的自然问候；问候后再进入本集 cold open 或核心叙事。普通集结尾必须包含下一集轻预告和一句自然告别；最后一集结尾必须包含系列告别和一句自然告别，不预告下一集。不要使用固定套话、广告式关注引导、订阅催促或制作备注。
 3. 运行 TTS，生成 voice.wav、voice_timeline_raw.json、voice_timeline_compact.json、tts_manifest.json，并验证非空。
 4. 构建 episode.mp3 和 production_manifest.json，并验证非空。
 5. 运行 validate_production.py --episode-dir {episode_dir}。
@@ -294,6 +319,7 @@ python3 {validate_script} --episode-dir {episode_dir}
 - 不要修改 production_state.json。
 - 不要修改其他 episode 目录。
 - 不要生成音乐、音效或混音说明。
+- 不要把问候、下集预告、告别写成固定模板、广告引导、订阅催促或制作说明。
 ```
 
 ## Validation
@@ -302,6 +328,10 @@ After each subagent reports completion, the main agent must validate:
 
 - `episode_brief.json` exists, is non-empty, and is valid JSON.
 - `narration.txt` exists, is non-empty, and contains clean spoken text.
+- `narration.txt` starts with a natural greeting after the fixed opening voice and before the episode cold open.
+- For non-final episodes, `narration.txt` ends with a light preview of the next planned episode and a natural goodbye.
+- For final or single-episode series, `narration.txt` ends with a series-level farewell and a natural goodbye, and does not preview a nonexistent next episode.
+- These greeting and closing checks are human/model quality checks. Do not add brittle keyword-only enforcement to `validate_production.py`.
 - `voice.wav` exists and is non-empty when audio generation is enabled.
 - `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json` are valid JSON when audio generation is enabled.
 - `tts_manifest.json.api_key_source` is `DASHSCOPE_API_KEY` and contains no secret value.
