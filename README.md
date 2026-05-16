@@ -5,6 +5,7 @@ This repository packages Codex plugins for Chinese knowledge podcast production:
 - `podcast-production`: plan a podcast series, write final episode narration, run CosyVoice TTS, and build a voice-only `episode.mp3`.
 - `podcast-production-agent-version`: a subagent-first rewrite where `podcast-series-showrunner` creates one episode subagent per target episode and the main agent owns validation plus `production_state.json`.
 - `wechat-article-production`: convert a completed `narration.txt` into a WeChat Official Account article draft.
+- `wechat-article-production-agent-version`: an agent-first WeChat article workflow with one public entrypoint and a bounded, transparent image strategy for reliable local image production.
 
 The plugins are designed to be installed together from this repository, while still keeping the podcast and WeChat workflows separate.
 
@@ -39,13 +40,21 @@ plugins/
 │       ├── run_episode_pipeline.py
 │       ├── robust_episode_tts.py
 │       └── validate_production.py
-└── wechat-article-production/
+├── wechat-article-production/
+│   ├── .codex-plugin/plugin.json
+│   └── skills/
+│       ├── wechat-article-pipeline/
+│       ├── wechat-narration-article/
+│       ├── wechat-image-director/
+│       └── wechat-html-publisher/
+└── wechat-article-production-agent-version/
     ├── .codex-plugin/plugin.json
+    ├── README.md
+    ├── scripts/
+    │   ├── render_wechat_html.py
+    │   └── upload_wechat_draft.py
     └── skills/
-        ├── wechat-article-pipeline/
-        ├── wechat-narration-article/
-        ├── wechat-image-director/
-        └── wechat-html-publisher/
+        └── wechat-article-pipeline/
 ```
 
 ## How A New User Uses This
@@ -56,11 +65,12 @@ plugins/
    https://github.com/ZhongBintao/podcast-skills
    ```
 
-2. The user installs the repository as a Codex plugin source. Codex reads `.agents/plugins/marketplace.json` and exposes three installable plugins:
+2. The user installs the repository as a Codex plugin source. Codex reads `.agents/plugins/marketplace.json` and exposes four installable plugins:
 
    - `Podcast Production`
    - `Podcast Production Agent Version`
    - `WeChat Article Production`
+   - `WeChat Article Production Agent Version`
 
 3. For podcast creation, start with:
 
@@ -85,6 +95,14 @@ plugins/
    ```
 
    The WeChat workflow creates a draft only. It must not publish or mass-send.
+
+   For the agent-version WeChat workflow, start with:
+
+   ```text
+   Use wechat-article-pipeline from wechat-article-production-agent-version to turn this narration.txt into a WeChat draft.
+   ```
+
+   The agent-version workflow keeps `wechat-article-pipeline` as the only user-facing skill and gives the article subagent controlled freedom inside a strict image policy: reliable sources first, finite retries, transparent manifest fields, local image downloads, and WeChat-hosted final images.
 
 ## Podcast Workflow
 
@@ -238,6 +256,38 @@ WECHAT_CONTENT_SOURCE_URL=
 WECHAT_NEED_OPEN_COMMENT=1
 WECHAT_ONLY_FANS_CAN_COMMENT=0
 ```
+
+## WeChat Article Agent-Version Workflow
+
+User-facing entrypoint:
+
+```text
+plugins/wechat-article-production-agent-version/skills/wechat-article-pipeline/
+```
+
+Default flow:
+
+```text
+narration.txt
+→ .wechat-work/article.json
+→ image_needs planning
+→ images/ + image_manifest.json
+→ article.html
+→ WeChat draft
+```
+
+The image workflow centers on truthfulness, license transparency, local downloads, and WeChat-hosted delivery:
+
+- Foreign authoritative open sources remain highest priority: Wikimedia Commons, NASA, NOAA, Smithsonian Open Access, The Met Open Access, Cleveland Museum of Art Open Access, museums, universities, libraries, archives, research institutions, government open data, and open galleries.
+- Each image need has a finite retry budget: at most 3 high-quality candidate sources, the same URL only once, and no repeated attempts against a consecutively failing domain.
+- Domestic official or institutional sources are fallback and Chinese-topic supplements, especially when preferred sources are inaccessible in the current agent environment.
+- Open stock galleries are allowed only for `atmosphere` or `pacing` roles, never as evidence.
+- AI-generated images are off by default, allowed only when the user explicitly asks, and must be marked `ai_generated`.
+- If no reliable image is found, `image_manifest.json` records `license_status: "not_found"` instead of inventing source metadata.
+
+`image_manifest.json` records `role`, `access_status`, `fallback_reason`, `license_status`, and `attempted_sources` for each successful image or not-found placeholder.
+
+Production HTML uses local files under `images/`. During draft creation, the upload script uploads body images and the cover to WeChat so final readers do not depend on remote source URLs.
 
 ## Deterministic Commands
 
