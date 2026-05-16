@@ -193,6 +193,24 @@ The brief must include:
     "series_farewell": null,
     "style": "回扣本集主题，轻轻预告下一集，用一句自然告别收束；不催订阅，不写制作备注"
   },
+  "pronunciation_policy": {
+    "default_strategy": "common_chinese_translation_first",
+    "transliteration_rule": "没有通行中文译名时可用自然音译，并在正文中用主持人口吻轻轻说明这是音译或暂译",
+    "explanation_rule": "音译生硬、难听、难读或影响理解时，用中文解释、描述性表达，或在不损失信息的前提下绕开原词",
+    "keep_common_english": ["AI", "DNA", "CEO", "IP", "App", "CPU"],
+    "avoid": ["音标", "拼音表", "括号堆原文", "SSML", "TTS 标签", "制作备注"]
+  },
+  "foreign_terms_to_review": [
+    {
+      "original": "Aristotle",
+      "term_type": "person",
+      "chosen_spoken_form": "亚里士多德",
+      "strategy": "common_chinese_translation",
+      "explain_as_transliteration": false,
+      "keep_original_in_narration": false,
+      "reason": "已有通行中文译名，正文不需要保留英文拼写"
+    }
+  ],
   "domain_constraints": {},
   "fact_check_requirements": {
     "required": false,
@@ -225,6 +243,11 @@ Each episode subagent writes `narration.txt` as final spoken Chinese narration:
 - Final episodes must end with a series-level farewell and a natural goodbye; do not preview a nonexistent next episode.
 - Prefer concrete scenes, mechanisms, evidence, and a restrained host voice.
 - Distinguish known facts, interpretation, uncertainty, and disputes when relevant.
+- Foreign names, places, terms, book titles, and institutions should be made friendly for Chinese spoken narration and TTS.
+- Prefer common Chinese translations. If no common Chinese translation exists, use natural transliteration and lightly tell listeners it is a transliteration or temporary translation in the host's voice.
+- If transliteration sounds awkward, is hard to pronounce, or hurts comprehension, use a Chinese explanation, descriptive phrase, or avoid the original term when the meaning can be preserved.
+- Keep common English abbreviations and already-natural English terms when they are familiar to Chinese listeners and stable for TTS, such as `AI`, `DNA`, `CEO`, `IP`, `App`, and `CPU`.
+- Do not put long foreign passages, phonetic symbols, spelling/pronunciation instructions, SSML, TTS tags, or production notes in `narration.txt`.
 
 Avoid formulaic openings:
 
@@ -274,12 +297,14 @@ Use this default prompt for every episode subagent. Fill every placeholder befor
 - next_episode_preview: {next_episode_preview}
 - series_farewell: {series_farewell}
 - closing_direction: {closing_direction}
+- pronunciation_policy: {pronunciation_policy}
+- foreign_terms_to_review: 由你在写稿前自行识别并写入 episode_brief.json
 - host_persona: 老钟，好奇、克制、像和朋友分享一个认真发现
 
 ## 执行步骤
 
 1. 创建 episode_dir，写 episode_brief.json，并验证 JSON 有效。
-2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。第一段必须是固定片头之后、单集正文之前的自然问候；问候后再进入本集 cold open 或核心叙事。普通集结尾必须包含下一集轻预告和一句自然告别；最后一集结尾必须包含系列告别和一句自然告别，不预告下一集。不要使用固定套话、广告式关注引导、订阅催促或制作备注。
+2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。写稿前自行识别难读或可能误读的外文人名、地名、术语、书名、机构名，写入 episode_brief.json.foreign_terms_to_review，并为每个关键外文词选择：通行中文译名、自然音译并轻说明、中文解释、绕开原词、保留通用英文。正文优先使用听众容易懂、TTS 容易读的表达；保留 AI、DNA、CEO、IP、App、CPU 这类通用英文可以，但不要保留不必要的裸外文难读词。第一段必须是固定片头之后、单集正文之前的自然问候；问候后再进入本集 cold open 或核心叙事。普通集结尾必须包含下一集轻预告和一句自然告别；最后一集结尾必须包含系列告别和一句自然告别，不预告下一集。不要使用固定套话、广告式关注引导、订阅催促、音标、拼音表、括号堆原文、拼读说明或制作备注。
 3. 运行 TTS，生成 voice.wav、voice_timeline_raw.json、voice_timeline_compact.json、tts_manifest.json，并验证非空。
 4. 构建 episode.mp3 和 production_manifest.json，并验证非空。
 5. 运行 validate_production.py --episode-dir {episode_dir}。
@@ -320,6 +345,7 @@ python3 {validate_script} --episode-dir {episode_dir}
 - 不要修改其他 episode 目录。
 - 不要生成音乐、音效或混音说明。
 - 不要把问候、下集预告、告别写成固定模板、广告引导、订阅催促或制作说明。
+- 不要把外文词处理写成词典注释、音标、拼读说明、SSML、TTS 标签或制作备注；要像主持人在照顾听众。
 ```
 
 ## Validation
@@ -332,6 +358,11 @@ After each subagent reports completion, the main agent must validate:
 - For non-final episodes, `narration.txt` ends with a light preview of the next planned episode and a natural goodbye.
 - For final or single-episode series, `narration.txt` ends with a series-level farewell and a natural goodbye, and does not preview a nonexistent next episode.
 - These greeting and closing checks are human/model quality checks. Do not add brittle keyword-only enforcement to `validate_production.py`.
+- `episode_brief.json` includes `pronunciation_policy` and any necessary `foreign_terms_to_review` entries identified by the subagent.
+- `narration.txt` avoids unnecessary bare hard-to-pronounce foreign terms, while reasonably preserving common English abbreviations such as `AI` and `DNA`.
+- Transliteration is natural and, when useful for listeners, lightly explained as transliteration or temporary translation in the host's voice.
+- Chinese explanations for awkward terms are smooth and do not interrupt the narrative.
+- These foreign-term checks are human/model quality checks. Do not add brittle keyword-only enforcement to `validate_production.py`.
 - `voice.wav` exists and is non-empty when audio generation is enabled.
 - `voice_timeline_raw.json`, `voice_timeline_compact.json`, and `tts_manifest.json` are valid JSON when audio generation is enabled.
 - `tts_manifest.json.api_key_source` is `DASHSCOPE_API_KEY` and contains no secret value.

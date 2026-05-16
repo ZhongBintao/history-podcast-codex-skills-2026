@@ -159,6 +159,8 @@ opening_voice.wav -> episode greeting -> episode body -> next preview or series 
 
 The greeting, preview, and goodbye are style-guided rather than fixed templates, so the episode can keep a warmer human voice without adding music, effects, or production notes.
 
+Episode subagents also handle foreign-term spoken forms. They use common Chinese translations first, use natural transliteration with a light explanation when there is no common translation, switch to Chinese explanation or omission when transliteration is awkward, and preserve familiar English abbreviations such as `AI`, `DNA`, `CEO`, `IP`, `App`, and `CPU` when they are natural in Chinese speech.
+
 Episode subagents use direct scripts:
 
 ```text
