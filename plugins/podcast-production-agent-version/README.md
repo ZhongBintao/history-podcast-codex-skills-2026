@@ -1,6 +1,6 @@
 # Podcast Production Agent Version
 
-`podcast-production-agent-version` is a subagent-first rewrite of the original podcast production plugin.
+`podcast-production-agent-version` is a subagent-first workflow for producing Chinese knowledge podcast series across history, science, humanities, travel, business, culture, and custom topics.
 
 The only user-facing skill is:
 
@@ -24,13 +24,14 @@ fixed opening_voice.wav -> episode greeting in narration.txt -> episode body -> 
 - Subagents must not modify `production_state.json`.
 - The main agent validates outputs and updates `production_state.json`.
 - Real DashScope credentials must stay in `DASHSCOPE_API_KEY`; task packets and manifests may reference only the environment variable name.
+- Episode structure references are creative prompts, not templates. Subagents may adjust narrative order, opening approach, pacing, and explanation style within the confirmed core question and factual boundaries.
 - Each episode's `narration.txt` starts with a natural host greeting after `opening_voice.wav` and before the episode body.
 - Non-final episodes close with a light next-episode preview and goodbye; final or single-episode series close with a series farewell and goodbye.
 - Episode subagents own foreign-term spoken-form choices: common Chinese translation first, natural transliteration with a light explanation when needed, Chinese explanation or omission when transliteration is awkward, and common English abbreviations such as `AI` and `DNA` may remain.
 
 ## Foreign-Term Spoken Forms
 
-Before writing `narration.txt`, each episode subagent identifies hard-to-pronounce or easily misread foreign names, places, terms, titles, and institutions.
+Before writing `narration.txt`, each episode subagent identifies foreign names, places, terms, titles, and institutions that may affect pronunciation, comprehension, or accuracy.
 
 The spoken script should prioritize listener comfort and TTS stability:
 
@@ -40,7 +41,7 @@ The spoken script should prioritize listener comfort and TTS stability:
 - Keep familiar English abbreviations and naturalized English terms when they are common in Chinese speech, such as `AI`, `DNA`, `CEO`, `IP`, `App`, and `CPU`.
 - Keep phonetic symbols, spelling instructions, SSML, TTS tags, and production notes out of `narration.txt`.
 
-The subagent records important choices in `episode_brief.json.foreign_terms_to_review`; source spelling and detailed notes can also live in `fact_check.md` when needed.
+The subagent records only important choices in `episode_brief.json.foreign_terms_to_review`; it is not a full foreign-term list. Source spelling and detailed notes can also live in `fact_check.md` when needed.
 
 ## Production Readiness
 

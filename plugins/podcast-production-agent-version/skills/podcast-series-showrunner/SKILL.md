@@ -9,7 +9,7 @@ description: 播客系列 showrunner 和唯一入口。Use when Codex needs to p
 
 Act as the only user-facing entrypoint for the podcast production system.
 
-Users should not need to know or invoke internal skills. The former `podcast-episode-director` and `history-script-writer` responsibilities are merged into this showrunner's episode task packet. TTS and editing responsibilities are deterministic script calls documented here.
+Users should not need to know or invoke internal skills. Episode planning and final narration responsibilities are merged into this showrunner's episode task packet. TTS and editing responsibilities are deterministic script calls documented here.
 
 Default production mode is subagent orchestration:
 
@@ -155,22 +155,22 @@ The brief must inherit from `series_plan.json`:
 - `domain_constraints`
 - selected episode metadata
 
-The brief must include:
+The brief should preserve production-critical fields and leave creative fields adaptable. Keep the core question, factual boundaries, host persona, and production constraints stable; let the subagent adapt structure, opening path, pacing, and explanation style for the episode.
 
 ```json
 {
-  "series_name": "穿过欧亚的路",
+  "series_name": "看见复杂世界的方法",
   "episode_no": 1,
-  "episode_title": "不是一条路",
-  "content_domain": "history",
+  "episode_title": "为什么一个简单问题会变复杂",
+  "content_domain": "knowledge",
   "target_length_chars": 5000,
-  "target_audience": ["泛知识用户", "历史爱好者"],
-  "core_question": "丝绸之路为什么不是一条固定道路？",
-  "narrative_angle": "从地图误解、绿洲网络、帝国边境和商旅成本理解丝绸之路。",
-  "structure": ["反常识开场", "传统认知", "证据链", "历史场景重建", "机制解释", "现代回响", "余韵式结尾"],
-  "content_modules": ["地图误解", "绿洲网络", "帝国边境", "商旅成本"],
-  "historical_anchors": ["丝绸之路概念", "绿洲城市", "中亚交通网络"],
-  "emotional_arc": "熟悉感 -> 认知松动 -> 开阔感",
+  "target_audience": ["泛知识用户", "对复杂问题有好奇心的听众"],
+  "core_question": "为什么有些问题一开始看起来简单，越理解越复杂？",
+  "narrative_angle": "从一个日常判断出发，拆开信息、经验、利益和时间尺度如何共同改变答案。",
+  "structure": ["日常场景或问题进入", "拆开直觉", "补充关键背景", "解释机制或冲突", "回到听众经验", "留出余韵"],
+  "content_modules": ["日常直觉", "关键背景", "机制解释", "现实回声"],
+  "anchors": ["一个具体场景", "一个关键概念", "一个能帮助听众理解的比较"],
+  "emotional_arc": "熟悉感 -> 迟疑 -> 豁然开朗 -> 留有余味",
   "host_persona": {
     "host_name": "老钟",
     "voice_persona": "好奇、克制、像和朋友分享一个认真发现",
@@ -188,8 +188,8 @@ The brief must include:
   "episode_closing_policy": {
     "required": true,
     "is_final_episode": false,
-    "next_episode_title": "绿洲为什么会成为世界的中转站",
-    "next_episode_preview": "从一座绿洲城看道路、补给、税收和信仰如何交汇。",
+    "next_episode_title": "我们为什么容易相信第一个答案",
+    "next_episode_preview": "从一个判断习惯出发，看直觉、经验和证据之间的微妙关系。",
     "series_farewell": null,
     "style": "回扣本集主题，轻轻预告下一集，用一句自然告别收束；不催订阅，不写制作备注"
   },
@@ -222,12 +222,13 @@ The brief must include:
 }
 ```
 
-Default structures:
+## Optional Structure References
 
-- History/culture: `["反常识开场", "传统认知", "证据链", "历史场景重建", "机制解释", "现代回响", "余韵式结尾"]`
-- Science: `["生活问题开场", "旧直觉", "核心机制", "关键证据", "边界与争议", "现实影响", "克制结尾"]`
-- Travel: `["抵达感开场", "路线展开", "关键场景", "人的经验", "地方机制", "避开清单化总结", "余韵结尾"]`
-- Humanities: `["文本或场景开场", "问题提出", "概念辨析", "解释路径", "反面限制", "当代回声", "开放式结尾"]`
+Structure references are prompts for thinking, not templates to execute.
+
+The episode subagent may begin from a scene, object, person in action, concrete question, common misunderstanding, or conceptual tension. The middle can use evidence, mechanism, story, comparison, debate, lived experience, or real-world consequences according to the topic. The ending should naturally return to the core question, then use the episode closing policy for a next-episode preview or series farewell.
+
+Do not mechanically follow a domain structure. Within the confirmed core question, factual boundaries, series voice, and production constraints, the subagent may actively adjust narrative order, opening approach, paragraph rhythm, and explanation style to make the spoken episode more natural.
 
 ## Narration Rules
 
@@ -243,6 +244,9 @@ Each episode subagent writes `narration.txt` as final spoken Chinese narration:
 - Final episodes must end with a series-level farewell and a natural goodbye; do not preview a nonexistent next episode.
 - Prefer concrete scenes, mechanisms, evidence, and a restrained host voice.
 - Distinguish known facts, interpretation, uncertainty, and disputes when relevant.
+- The goal is a natural, credible spoken episode with 老钟's human warmth, not completion of a fixed outline.
+- Within the episode's core question, factual boundaries, series voice, and production constraints, actively choose the narrative order, opening path, paragraph rhythm, and explanation style that best serve the topic.
+- Do not let listeners feel the host is executing a format checklist. Greetings, previews, farewells, and foreign-term handling should disappear into the flow of the narration.
 - Foreign names, places, terms, book titles, and institutions should be made friendly for Chinese spoken narration and TTS.
 - Prefer common Chinese translations. If no common Chinese translation exists, use natural transliteration and lightly tell listeners it is a transliteration or temporary translation in the host's voice.
 - If transliteration sounds awkward, is hard to pronounce, or hurts comprehension, use a Chinese explanation, descriptive phrase, or avoid the original term when the meaning can be preserved.
@@ -286,7 +290,7 @@ Use this default prompt for every episode subagent. Fill every placeholder befor
 - content_domain: {content_domain}
 - core_question: {core_question}
 - narrative_angle: {narrative_angle}
-- structure: {structure}
+- structure: {structure} （可作为创作参考，不必机械照抄）
 - content_modules: {content_modules}
 - emotional_arc: {emotional_arc}
 - anchors: {anchors}
@@ -298,13 +302,13 @@ Use this default prompt for every episode subagent. Fill every placeholder befor
 - series_farewell: {series_farewell}
 - closing_direction: {closing_direction}
 - pronunciation_policy: {pronunciation_policy}
-- foreign_terms_to_review: 由你在写稿前自行识别并写入 episode_brief.json
+- foreign_terms_to_review: 只记录会影响发音、理解或准确性的重要外文词；普通、无风险、无需处理的词不用列
 - host_persona: 老钟，好奇、克制、像和朋友分享一个认真发现
 
 ## 执行步骤
 
 1. 创建 episode_dir，写 episode_brief.json，并验证 JSON 有效。
-2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。写稿前自行识别难读或可能误读的外文人名、地名、术语、书名、机构名，写入 episode_brief.json.foreign_terms_to_review，并为每个关键外文词选择：通行中文译名、自然音译并轻说明、中文解释、绕开原词、保留通用英文。正文优先使用听众容易懂、TTS 容易读的表达；保留 AI、DNA、CEO、IP、App、CPU 这类通用英文可以，但不要保留不必要的裸外文难读词。第一段必须是固定片头之后、单集正文之前的自然问候；问候后再进入本集 cold open 或核心叙事。普通集结尾必须包含下一集轻预告和一句自然告别；最后一集结尾必须包含系列告别和一句自然告别，不预告下一集。不要使用固定套话、广告式关注引导、订阅催促、音标、拼音表、括号堆原文、拼读说明或制作备注。
+2. 写 narration.txt，约 {target_length_chars} 字，纯文本，空行分段，无 Markdown、无制作备注、无 TTS 标签。你的目标是写一集自然、可信、有老钟人情味、适合 TTS 的中文口播稿，而不是完成固定结构。你可以在不改变本集核心问题、事实边界、系列气质和生产边界的前提下，主动调整叙事顺序、开场方式、段落节奏和解释方式。第一段必须是固定片头之后、单集正文之前的自然问候；问候后再进入本集 cold open 或核心叙事。普通集结尾必须包含下一集轻预告和一句自然告别；最后一集结尾必须包含系列告别和一句自然告别，不预告下一集。写稿前自行识别会影响发音、理解或准确性的重要外文词，写入 episode_brief.json.foreign_terms_to_review；普通、无风险、无需处理的外文词不用列。正文优先使用听众容易懂、TTS 容易读的表达；保留 AI、DNA、CEO、IP、App、CPU 这类通用英文可以，但不要保留不必要的裸外文难读词。不要使用固定套话、广告式关注引导、订阅催促、音标、拼音表、括号堆原文、拼读说明或制作备注。
 3. 运行 TTS，生成 voice.wav、voice_timeline_raw.json、voice_timeline_compact.json、tts_manifest.json，并验证非空。
 4. 构建 episode.mp3 和 production_manifest.json，并验证非空。
 5. 运行 validate_production.py --episode-dir {episode_dir}。
@@ -358,7 +362,9 @@ After each subagent reports completion, the main agent must validate:
 - For non-final episodes, `narration.txt` ends with a light preview of the next planned episode and a natural goodbye.
 - For final or single-episode series, `narration.txt` ends with a series-level farewell and a natural goodbye, and does not preview a nonexistent next episode.
 - These greeting and closing checks are human/model quality checks. Do not add brittle keyword-only enforcement to `validate_production.py`.
-- `episode_brief.json` includes `pronunciation_policy` and any necessary `foreign_terms_to_review` entries identified by the subagent.
+- The episode sounds like 老钟 seriously sharing something with a friend, not a wiki rewrite, short-video narration, or mechanical outline execution.
+- The subagent stays within the core question and factual boundaries while using narrative order, opening approach, pacing, and explanation style flexibly.
+- `episode_brief.json` includes `pronunciation_policy` and any necessary `foreign_terms_to_review` entries identified by the subagent; this is not a full foreign-term list.
 - `narration.txt` avoids unnecessary bare hard-to-pronounce foreign terms, while reasonably preserving common English abbreviations such as `AI` and `DNA`.
 - Transliteration is natural and, when useful for listeners, lightly explained as transliteration or temporary translation in the host's voice.
 - Chinese explanations for awkward terms are smooth and do not interrupt the narrative.
