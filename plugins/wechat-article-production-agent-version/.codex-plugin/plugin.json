@@ -1,7 +1,7 @@
 {
   "name": "wechat-article-production-agent-version",
   "version": "0.1.0",
-  "description": "Agent-first Codex plugin for turning completed Chinese podcast narration into a WeChat Official Account article draft with bounded, transparent image sourcing.",
+  "description": "Showrunner-first Codex plugin for turning completed Chinese podcast narration into WeChat Official Account article drafts through subagents, Markdown contracts, deterministic validation, and optional upload.",
   "author": {
     "name": "ZhongBintao",
     "url": "https://github.com/ZhongBintao"
@@ -12,16 +12,16 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "WeChat Article Production Agent Version",
-    "shortDescription": "把 narration.txt 转成带有限重试配图策略的微信公众号草稿",
-    "longDescription": "将 wechat-article-pipeline 作为唯一入口。主 agent 负责边界、验收和确定性脚本；article subagent 在真实性、授权透明、本地下载和有限重试规则内生成文章与图片清单。",
+    "shortDescription": "总控 + subagent + Markdown 契约生成公众号草稿",
+    "longDescription": "将 wechat-article-pipeline 作为唯一入口。主 agent 负责沟通、分发、验收、总控脚本和上传；每篇文章由一个 subagent 交付 article_draft.md、image_candidates.md 和本地图片，JSON 仅由脚本生成。",
     "developerName": "ZhongBintao",
     "category": "Productivity",
     "capabilities": ["Interactive", "Write"],
     "websiteURL": "https://github.com/ZhongBintao/podcast-skills",
     "defaultPrompt": [
       "用 wechat-article-pipeline 把这个 narration.txt 做成公众号草稿",
-      "为这篇口播稿生成公众号文章并按新版图片策略配图",
-      "检查公众号文章包和 image_manifest.json 是否符合 agent-version 规则"
+      "为这篇口播稿生成公众号文章并按 Markdown 契约配图",
+      "检查公众号文章包和 preflight 是否符合 agent-version 规则"
     ],
     "brandColor": "#15803D"
   }

@@ -1,6 +1,6 @@
 # WeChat Article Production Agent Version
 
-`wechat-article-production-agent-version` converts a completed Chinese podcast narration into a WeChat Official Account draft.
+`wechat-article-production-agent-version` converts completed Chinese podcast narration into WeChat Official Account article drafts.
 
 The only user-facing skill is:
 
@@ -8,93 +8,91 @@ The only user-facing skill is:
 wechat-article-pipeline
 ```
 
-The workflow is agent-first: the main agent owns user intent, boundaries, configuration, deterministic rendering/upload scripts, and final validation. The article subagent may decide how many images the article actually needs, but must follow the image strategy, retry budget, manifest schema, and failure behavior in the pipeline skill.
+The workflow is now showrunner-first: the main agent coordinates the user, creates one directory per article, assigns one subagent per article, accepts only fixed Markdown contract files, and delegates final JSON generation, validation, rendering, and optional upload to deterministic scripts.
+
+Agents do not hand-write final `article.json` or `image_manifest.json`. Those files are script products.
 
 ## Default Flow
 
 ```text
 narration.txt
-→ .wechat-work/article.json
-→ candidate_images from first search results
-→ images/ + image_manifest.json
+→ article_draft.md + image_candidates.md + images/
+→ parse_article_draft.py
+→ parse_image_candidates.py
 → prepare_wechat_images.py
 → validate_wechat_article_package.py
-→ article.html
-→ WeChat draft
+→ render_wechat_html.py
+→ validate_wechat_article_package.py --require-html
+→ .wechat-work/preflight.json
+→ optional WeChat draft upload by main agent only
 ```
 
-Final successful output:
+The main command is:
+
+```bash
+python3 scripts/run_wechat_article_package.py --article-dir /absolute/path/to/article-dir
+```
+
+Use `--upload` only after the user requests upload and WeChat credentials are available.
+
+## Markdown Contracts
+
+`article_draft.md` must contain:
+
+```markdown
+# 标题
+摘要：100-110 个中文字符以内的摘要。
+
+## 小标题
+自然段正文。
+```
+
+`image_candidates.md` must contain one `##` block per image item with:
 
 ```text
-article.html
-image_manifest.json
-images/
-wechat_upload_result.json
+id
+role
+placement
+visual_need
+source_page_url
+image_url
+source_name
+creator
+license
+license_status
+local_path
+attempted_sources
+notes
 ```
+
+When no reliable image is found, keep a block with `license_status: not_found` and `local_path: null`.
 
 ## Image Strategy
 
 The image workflow prioritizes truthfulness, license transparency, local downloads, and WeChat-hosted final delivery.
 
-- Foreign authoritative open sources remain the highest priority: Wikimedia Commons, NASA, NOAA, Smithsonian Open Access, The Met Open Access, Cleveland Museum of Art Open Access, museums, universities, libraries, archives, research institutions, government open data, and open galleries.
-- If preferred sources are inaccessible or unsuitable, the workflow uses limited retries and then falls back to another authoritative source or to domestic official/institutional sources.
-- First-round search results are treated as the candidate pool. When high-quality candidates appear, the agent must fetch and download from those candidates instead of continuing to search.
-- Mainland China-accessible sources are a fallback and Chinese-topic supplement, not a replacement for reliability priority.
-- Open stock galleries such as Unsplash, Pexels, and Pixabay may only support `atmosphere` or `pacing` images.
-- AI-generated images are off by default. They are allowed only when the user explicitly asks and must be marked `ai_generated`.
-- Reliable images are not mandatory. When none can be found, `image_manifest.json` records a `not_found` placeholder instead of inventing metadata or lowering standards.
+- Authoritative open sources come first: Wikimedia Commons, NASA, NOAA, Smithsonian Open Access, The Met Open Access, Cleveland Museum of Art Open Access, museums, universities, libraries, archives, research institutions, government open data, and open galleries.
+- Domestic official or institutional sources may be used as fallback or Chinese-topic supplement, but copyright uncertainty must be labeled honestly.
+- Open stock galleries may only support `atmosphere` or `pacing`.
+- AI-generated images are off by default, allowed only when explicitly requested, and must be marked `ai_generated`.
+- Evidence images must never use `stock_license` or `ai_generated`.
 
-## Retry Budget
-
-For each `image_need`:
-
-- turn first-round search results into `candidate_images`;
-- process existing high-quality candidates before launching another search;
-- try at most 3 high-quality candidate sources;
-- try the same URL at most once;
-- stop retrying the same domain after consecutive failure;
-- fall back or write `license_status: "not_found"` after the budget is exhausted.
-
-The agent must not loop on blocked Wikimedia, NASA, NOAA, museum, archive, or university pages.
-
-## Manifest
-
-`image_manifest.json` records successful images and not-found placeholders. Each item includes role, access status, fallback reason, license status, attempted sources, source URLs, creator, caption, local path, and notes.
-
-Core role values:
-
-```text
-evidence
-explanation
-spatial_orientation
-pacing
-atmosphere
-```
-
-Core status values:
-
-```text
-downloaded
-timeout
-blocked
-not_found
-skipped
-```
+Finding no reliable image is acceptable. The manifest records a `not_found` placeholder instead of invented metadata.
 
 ## Included Scripts
 
 Run from this plugin root:
 
 ```bash
-python3 scripts/prepare_wechat_images.py --article-dir /absolute/path/to/narration-wechat
-python3 scripts/validate_wechat_article_package.py --article-dir /absolute/path/to/narration-wechat
-python3 scripts/render_wechat_html.py --article-dir /absolute/path/to/narration-wechat
-python3 scripts/upload_wechat_draft.py --article-dir /absolute/path/to/narration-wechat
+python3 scripts/parse_article_draft.py --article-dir /absolute/path/to/article-dir
+python3 scripts/parse_image_candidates.py --article-dir /absolute/path/to/article-dir
+python3 scripts/run_wechat_article_package.py --article-dir /absolute/path/to/article-dir
+python3 scripts/upload_wechat_draft.py --article-dir /absolute/path/to/article-dir
 ```
 
-`prepare_wechat_images.py` rejects HTML/XML error pages, converts SVG to a raster image, and compresses images that exceed conservative WeChat upload limits. `validate_wechat_article_package.py` verifies JSON structure, manifest fields, local image paths, and the 110-character summary safety limit.
+`run_wechat_article_package.py` is the normal production entrypoint for the main agent. It writes `.wechat-work/preflight.json` after the package validates and renders.
 
-`article.html` uses local image paths during production. The upload script uploads body images and cover image to WeChat, then replaces body image URLs in the draft content. Readers should see WeChat-hosted images, not remote source URLs.
+Standalone render/upload commands refuse to continue when Markdown, generated JSON, or manifest files are newer than preflight. Rerun the main package script after edits.
 
 ## WeChat Credentials
 

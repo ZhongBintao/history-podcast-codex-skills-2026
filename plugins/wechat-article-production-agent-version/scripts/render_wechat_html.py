@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from preflight_guard import assert_preflight_current
+
 
 def clean_text(value):
     text = "" if value is None else str(value)
@@ -192,10 +194,13 @@ def main():
     parser.add_argument("--article-dir", required=True)
     parser.add_argument("--article-json")
     parser.add_argument("--work-dir", default=".wechat-work")
+    parser.add_argument("--skip-preflight-check", action="store_true")
     args = parser.parse_args()
 
     article_dir = Path(args.article_dir).resolve()
     work_dir = article_dir / args.work_dir
+    if not args.skip_preflight_check:
+        assert_preflight_current(article_dir, args.work_dir)
     article_path = Path(args.article_json).resolve() if args.article_json else work_dir / "article.json"
     manifest_path = article_dir / "image_manifest.json"
     if not article_path.exists():

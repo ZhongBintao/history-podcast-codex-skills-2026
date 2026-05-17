@@ -12,6 +12,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from preflight_guard import assert_preflight_current
+
 
 API_BASE = "https://api.weixin.qq.com"
 ONE_MB = 1024 * 1024
@@ -122,6 +124,7 @@ def find_image_sources(html):
 
 
 def run_package_validator(article_dir, work_dir_arg, author):
+    assert_preflight_current(article_dir, work_dir_arg)
     validator = Path(__file__).resolve().with_name("validate_wechat_article_package.py")
     subprocess.run(
         [
