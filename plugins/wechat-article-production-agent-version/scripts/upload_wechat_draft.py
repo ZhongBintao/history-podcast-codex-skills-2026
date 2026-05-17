@@ -16,6 +16,8 @@ from pathlib import Path
 API_BASE = "https://api.weixin.qq.com"
 ONE_MB = 1024 * 1024
 UPLOAD_IMAGE_LIMIT = 950 * 1024
+COVER_IMAGE_LIMIT = 9_500 * 1024
+MAX_DIGEST_CHARS = 110
 DEFAULT_ENV_FILE = Path.home() / ".codex" / "wechat.env"
 
 
@@ -119,6 +121,24 @@ def find_image_sources(html):
     return re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', html, flags=re.I)
 
 
+def run_package_validator(article_dir, work_dir_arg, author):
+    validator = Path(__file__).resolve().with_name("validate_wechat_article_package.py")
+    subprocess.run(
+        [
+            sys.executable,
+            str(validator),
+            "--article-dir",
+            str(article_dir),
+            "--work-dir",
+            work_dir_arg,
+            "--author",
+            author,
+            "--require-html",
+        ],
+        check=True,
+    )
+
+
 def run_sips(src, dst, max_edge, quality):
     subprocess.run(
         [
@@ -180,13 +200,15 @@ def main():
     args.need_open_comment = env_int("WECHAT_NEED_OPEN_COMMENT", args.need_open_comment)
     args.only_fans_can_comment = env_int("WECHAT_ONLY_FANS_CAN_COMMENT", args.only_fans_can_comment)
 
+    article_dir = Path(args.article_dir).resolve()
+    work_dir = article_dir / args.work_dir
+    run_package_validator(article_dir, args.work_dir, args.author)
+
     appid = os.environ.get("WECHAT_APPID")
     appsecret = os.environ.get("WECHAT_APPSECRET")
     if not appid or not appsecret:
         die("请通过环境变量提供 WECHAT_APPID 和 WECHAT_APPSECRET。")
 
-    article_dir = Path(args.article_dir).resolve()
-    work_dir = article_dir / args.work_dir
     html_path = article_dir / "article.html"
     article_path = work_dir / "article.json"
     meta_path = work_dir / "meta.json"
@@ -204,13 +226,19 @@ def main():
     meta = json.loads(meta_path.read_text("utf-8")) if meta_path.exists() else {}
     content_html = compact_html_fragment(extract_main_inner(html))
     title = meta.get("title") or article_data["title"]
-    digest = (meta.get("summary") or article_data["summary"])[:128]
+    digest = re.sub(r"\s+", " ", str(meta.get("summary") or article_data["summary"])).strip()
+    if len(digest) > MAX_DIGEST_CHARS:
+        die(f"摘要超过微信安全长度 {MAX_DIGEST_CHARS} 字，请先缩短 summary: {len(digest)}")
     cover = meta.get("cover") or next((image for image in manifest if image.get("placement") == "cover"), {})
     cover_path = Path(cover.get("src") or cover.get("local_path") or "images/cover.jpg")
     if not cover_path.is_absolute():
         cover_path = article_dir / cover_path
     if not cover_path.exists():
         die(f"缺少可上传的本地封面图片: {cover_path}")
+    if cover_path.suffix.lower() not in {".jpg", ".jpeg", ".png", ".gif"}:
+        die(f"封面图片格式不适合微信上传，请先运行 prepare_wechat_images.py: {cover_path}")
+    if cover_path.stat().st_size > COVER_IMAGE_LIMIT:
+        die(f"封面图片超过微信安全大小 {COVER_IMAGE_LIMIT} bytes，请先运行 prepare_wechat_images.py: {cover_path}")
 
     if len(title) > 32:
         die(f"标题超过微信 32 字限制: {title}")
@@ -225,7 +253,7 @@ def main():
     prepared_images = {}
     for src in sorted(set(find_image_sources(content_html))):
         if re.match(r"https?://", src):
-            continue
+            die(f"HTML 中不能引用远程图片，请先上传或改成本地图片: {src}")
         local = article_dir / src
         if not local.exists():
             die(f"HTML 中引用的图片不存在: {src}")

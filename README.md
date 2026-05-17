@@ -51,8 +51,10 @@ plugins/
     ├── .codex-plugin/plugin.json
     ├── README.md
     ├── scripts/
+    │   ├── prepare_wechat_images.py
     │   ├── render_wechat_html.py
-    │   └── upload_wechat_draft.py
+    │   ├── upload_wechat_draft.py
+    │   └── validate_wechat_article_package.py
     └── skills/
         └── wechat-article-pipeline/
 ```
@@ -271,7 +273,10 @@ Default flow:
 narration.txt
 → .wechat-work/article.json
 → image_needs planning
+→ candidate_images from first search results
 → images/ + image_manifest.json
+→ prepare_wechat_images.py
+→ validate_wechat_article_package.py
 → article.html
 → WeChat draft
 ```
@@ -279,6 +284,7 @@ narration.txt
 The image workflow centers on truthfulness, license transparency, local downloads, and WeChat-hosted delivery:
 
 - Foreign authoritative open sources remain highest priority: Wikimedia Commons, NASA, NOAA, Smithsonian Open Access, The Met Open Access, Cleveland Museum of Art Open Access, museums, universities, libraries, archives, research institutions, government open data, and open galleries.
+- First-round search results become `candidate_images`; high-quality candidates must be fetched and processed before launching more searches.
 - Each image need has a finite retry budget: at most 3 high-quality candidate sources, the same URL only once, and no repeated attempts against a consecutively failing domain.
 - Domestic official or institutional sources are fallback and Chinese-topic supplements, especially when preferred sources are inaccessible in the current agent environment.
 - Open stock galleries are allowed only for `atmosphere` or `pacing` roles, never as evidence.
@@ -288,6 +294,15 @@ The image workflow centers on truthfulness, license transparency, local download
 `image_manifest.json` records `role`, `access_status`, `fallback_reason`, `license_status`, and `attempted_sources` for each successful image or not-found placeholder.
 
 Production HTML uses local files under `images/`. During draft creation, the upload script uploads body images and the cover to WeChat so final readers do not depend on remote source URLs.
+
+The agent-version workflow includes deterministic preflight scripts:
+
+```bash
+python3 scripts/prepare_wechat_images.py --article-dir /absolute/path/to/narration-wechat
+python3 scripts/validate_wechat_article_package.py --article-dir /absolute/path/to/narration-wechat
+```
+
+These scripts handle image format/size compatibility, reject HTML/XML fake images, convert SVG, validate JSON structure, and enforce a conservative 110-character summary safety limit before rendering or upload.
 
 ## Deterministic Commands
 

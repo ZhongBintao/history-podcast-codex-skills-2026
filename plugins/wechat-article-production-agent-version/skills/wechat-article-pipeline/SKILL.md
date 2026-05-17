@@ -21,7 +21,10 @@ This agent-version skill keeps one public entrypoint. The main agent owns user i
 narration.txt
 → .wechat-work/article.json
 → image_needs planning
+→ candidate_images from first search results
 → images/ + image_manifest.json
+→ prepare_wechat_images.py
+→ validate_wechat_article_package.py
 → article.html
 → WeChat draft
 ```
@@ -72,7 +75,7 @@ Write this JSON object to `<output>/.wechat-work/article.json`:
 ```json
 {
   "title": "一个最终标题",
-  "summary": "100-180 字摘要/导语。",
+  "summary": "100-110 个中文字符以内的摘要/导语。",
   "sections": [
     {
       "heading": "小标题",
@@ -85,7 +88,9 @@ Write this JSON object to `<output>/.wechat-work/article.json`:
 Rules:
 
 - Generate exactly one title.
+- Keep `summary` within 100-110 Chinese characters. Do not approach the WeChat API limit.
 - Do not produce Markdown, title option lists, rewrite notes, source lists, or internal commentary.
+- Do not hand-write large JSON files as raw text. Write `article.json` with a JSON serializer, for example `json.dumps(data, ensure_ascii=False, indent=2)`.
 - Preserve the narration's facts, logic, viewpoint, tone, emotional progression, and necessary personal expression.
 - Remove口播-only repetition, filler transitions, recording/TTS artifacts, and excessive rhythm words.
 - Keep about 70%-85% of the source information density unless the user asks otherwise.
@@ -155,6 +160,10 @@ China-mainland accessibility is a fallback dimension, not a replacement for reli
 
 For every `image_need`:
 
+- Treat first-round WebSearch results as the candidate pool. If high-quality sources appear in the first round, immediately process them with WebFetch instead of launching more searches.
+- Write `candidate_images` before downloading. Each candidate should track `candidate_url`, `source_type`, `domain`, `expected_role`, and why it may satisfy the image need.
+- Process candidates in priority order: WebFetch candidate page, extract reliable image URL and license metadata, download to `images/`, run `prepare_wechat_images.py`, then update `image_manifest.json`.
+- Do not run another WebSearch while there are unprocessed high-quality candidates for the same image need.
 - Try at most 3 high-quality candidate sources.
 - Try the same URL at most 1 time.
 - If the same domain fails consecutively, stop opening more pages from that domain for this need.
@@ -264,6 +273,9 @@ Use production wording only. Never write `封面图候选`.
 ## Local Image And WeChat Upload Rules
 
 - Production images must be downloaded to local `images/`.
+- After downloading images and writing `image_manifest.json`, run `prepare_wechat_images.py` before rendering HTML.
+- `prepare_wechat_images.py` owns WeChat image compatibility: reject HTML/XML error pages, convert SVG to raster images, compress oversized body images and covers, and update `local_path` when a prepared copy is created.
+- The AI owns source reliability and license transparency; the script owns format, size, and local image compatibility.
 - `article.html` uses local image paths.
 - Source URLs in the manifest exist only for source tracing and license transparency.
 - Draft upload must upload body images to WeChat and replace body image URLs with WeChat-hosted URLs.
@@ -272,6 +284,13 @@ Use production wording only. Never write `封面图候选`.
 - If `local_path` is null, do not reference a remote image URL in `article.html`.
 
 ## Rendering
+
+Before rendering, validate the package:
+
+```bash
+python3 scripts/validate_wechat_article_package.py \
+  --article-dir /path/to/narration-wechat
+```
 
 Run from this plugin root:
 
@@ -288,6 +307,13 @@ The renderer writes:
 The temporary meta file is for upload only and should be deleted after successful draft creation.
 
 ## Draft Upload
+
+Prepare images before rendering and uploading:
+
+```bash
+python3 scripts/prepare_wechat_images.py \
+  --article-dir /path/to/narration-wechat
+```
 
 Run from this plugin root:
 
@@ -308,8 +334,9 @@ Rules:
 - Never expose AppSecret.
 - Keep title <= 32 Chinese characters.
 - Keep author <= 16 Chinese characters.
-- Keep digest <= 128 Chinese characters.
-- Compress正文 images below 1MB when needed.
+- Keep digest/summary <= 110 Chinese characters as a conservative local safety limit.
+- Do not rely on upload-time compression for normal production. Run `prepare_wechat_images.py` first.
+- Upload refuses remote image URLs, missing local images, oversized covers, and packages that fail `validate_wechat_article_package.py`.
 - Delete `.wechat-work/` and `.wechat-upload/` after successful upload.
 
 ## Forbidden Outputs
@@ -320,6 +347,7 @@ Rules:
 - final `meta.json`
 - title option lists
 - `封面图候选`
+- raw hand-written large JSON for `article.json` or `image_manifest.json`
 
 ## Forbidden Image Behaviors
 
@@ -339,6 +367,9 @@ Before final reporting, verify:
 - `wechat-article-pipeline` is the only user-facing skill in this plugin.
 - `.wechat-work/article.json` exists during production and contains one title, one summary, and sections.
 - `image_manifest.json` includes `role`, `access_status`, `fallback_reason`, `license_status`, and `attempted_sources`.
+- `article.json` and `image_manifest.json` were written through a JSON serializer, not manually composed as raw JSON text.
+- `prepare_wechat_images.py` has run after image download and before HTML rendering.
+- `validate_wechat_article_package.py` passes before rendering/uploading.
 - Every downloaded image has a local file under `images/`.
 - Not-found image needs are represented with `license_status: "not_found"` instead of fake metadata.
 - Evidence images never use open stock galleries or AI-generated images as substitutes.
